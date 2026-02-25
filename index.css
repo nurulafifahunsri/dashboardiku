@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+
+:root {
+  --bg: #f4f7f1;
+  --surface: #ffffff;
+  --surface-2: #f8fbff;
+  --ink: #122018;
+  --muted: #64756b;
+  --primary: #17624a;
+  --primary-soft: #def4e9;
+  --accent: #ce7b34;
+  --accent-soft: #ffedd9;
+  --border: #dbe8de;
+  --danger: #c84444;
+  --danger-soft: #ffe8e8;
+  --shadow-soft: 0 8px 30px rgba(22, 50, 36, 0.08);
+  --shadow-strong: 0 18px 40px rgba(22, 50, 36, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(23, 98, 74, 0.1), transparent 30%),
+    radial-gradient(circle at 8% 88%, rgba(206, 123, 52, 0.12), transparent 32%),
+    linear-gradient(180deg, #f4f7f1 0%, #f0f5fb 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, .display-font {
+  font-family: 'Sora', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.glass-surface {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.metric-card {
+  position: relative;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(23, 98, 74, 0.35);
+  box-shadow: var(--shadow-strong);
+}
+
+.stagger-in {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: fade-slide 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-in:nth-child(1) { animation-delay: 80ms; }
+.stagger-in:nth-child(2) { animation-delay: 150ms; }
+.stagger-in:nth-child(3) { animation-delay: 220ms; }
+.stagger-in:nth-child(4) { animation-delay: 290ms; }
+
+.panel-in {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fade-slide 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fade-slide {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.2s ease-in-out 0s 2;
+}

@@ -1,0 +1,5 @@
+id,category,ikuNum,indicator,unit,target_2025,target_2026,target_2027,target_2028,target_2029,target_2030,achievement_2025,achievement_2026,achievement_2027,achievement_2028,achievement_2029,achievement_2030
+1-1,Talenta,IKU 1,Angka Efisiensi Edukasi PT (S1),%,49.7,50,51,52,53,54,,42.5,,,,
+
+Format ini adalah acuan kolom untuk Import/Export Excel.
+Header harus sama persis agar endpoint /api/iku/import bisa membaca data dengan benar.
