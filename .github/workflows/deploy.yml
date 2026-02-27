@@ -1,0 +1,24 @@
+name: Deploy to VPS
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy into VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd /var/www/html/dashboardiku
+            git pull origin main
+            yarn
+            yarn build
+            pm2 restart dashboardiku
+            
