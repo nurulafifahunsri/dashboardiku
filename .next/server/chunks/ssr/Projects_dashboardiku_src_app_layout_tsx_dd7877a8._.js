@@ -1,0 +1,3 @@
+module.exports=[49294,a=>{"use strict";var b=a.i(88337);function c({children:a}){return(0,b.jsxs)("html",{lang:"en",children:[(0,b.jsxs)("head",{children:[(0,b.jsx)("link",{rel:"preconnect",href:"https://fonts.googleapis.com"}),(0,b.jsx)("link",{rel:"preconnect",href:"https://fonts.gstatic.com",crossOrigin:"anonymous"}),(0,b.jsx)("link",{href:"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap",rel:"stylesheet"})]}),(0,b.jsx)("body",{children:(0,b.jsx)("div",{id:"root",children:a})})]})}a.s(["default",()=>c,"metadata",0,{title:"Dashboard IKU Fasilkom",description:"Monitoring Kinerja Utama Fakultas"}])}];
+
+//# sourceMappingURL=Projects_dashboardiku_src_app_layout_tsx_dd7877a8._.js.map

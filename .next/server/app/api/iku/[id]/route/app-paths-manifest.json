@@ -1,0 +1,3 @@
+{
+  "/api/iku/[id]/route": "app/api/iku/[id]/route.js"
+}
