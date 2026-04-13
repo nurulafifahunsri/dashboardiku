@@ -92,7 +92,6 @@ export default function Page() {
         { name: SasaranProgram.Talenta, icon: Users },
         { name: SasaranProgram.Inovasi, icon: Lightbulb },
         { name: SasaranProgram.Kontribusi, icon: Globe },
-        { name: SasaranProgram.Masyarakat, icon: TrendingUp },
         { name: SasaranProgram.TataKelola, icon: Settings },
         { name: 'Manajemen Data', icon: Database },
         ...(user?.role === 'admin' ? [{ name: 'Manajemen User', icon: Users }] : []),

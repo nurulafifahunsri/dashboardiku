@@ -15,6 +15,5 @@ export enum SasaranProgram {
   Talenta = 'Talenta',
   Inovasi = 'Inovasi',
   Kontribusi = 'Kontribusi Keilmuan',
-  Masyarakat = 'Masyarakat',
   TataKelola = 'Tata Kelola Institusi'
 }

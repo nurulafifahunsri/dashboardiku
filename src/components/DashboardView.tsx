@@ -50,7 +50,6 @@ const DashboardView: React.FC<Props> = ({ year, data }) => {
     [SasaranProgram.Talenta]: '#17624a',
     [SasaranProgram.Inovasi]: '#ce7b34',
     [SasaranProgram.Kontribusi]: '#197a9a',
-    [SasaranProgram.Masyarakat]: '#4f46e5',
     [SasaranProgram.TataKelola]: '#b23b6b',
   };
 
