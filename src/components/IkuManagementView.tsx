@@ -214,7 +214,6 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
             <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Manajemen Data IKU</h2>
             <p className="text-sm text-[var(--muted)]">Kelola data IKU, import/export Excel, dan pantau rekap indikator.</p>
           </div>
-          <p className="text-xs font-semibold text-[var(--muted)]">Sumber data: MySQL</p>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
