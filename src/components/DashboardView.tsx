@@ -12,6 +12,7 @@ import {
   Area,
   Cell,
   LabelList,
+  Label,
 } from "recharts";
 import { IKUData, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle } from "lucide-react";
@@ -245,8 +246,12 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={hierarchyDistribution} layout="vertical" margin={{ left: 24, right: 22, top: 8, bottom: 8 }} barCategoryGap={8}>
                 <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
+                  <Label value="Persentase (%)" position="insideBottom" offset={-2} fill="#5a6c62" fontSize={12} />
+                </XAxis>
+                <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false}>
+                  <Label value="Indikator" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
+                </YAxis>
                 <Tooltip
                   cursor={{ fill: "#f2f7f3" }}
                   contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
