@@ -14,6 +14,7 @@ import {
   User,
   KeyRound,
   ShieldCheck,
+  TriangleAlert,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -111,6 +112,7 @@ function DashboardPage() {
   const [ikuData, setIkuData] = useState<IKUData[]>([]);
   const [masterYears, setMasterYears] = useState<MasterYear[]>([]);
   const [isLoadingYears, setIsLoadingYears] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menu = toValidMenu(searchParams.get("menu"));
   const nextMenu = toValidMenu(searchParams.get("next"));
@@ -221,10 +223,11 @@ function DashboardPage() {
     pushUrl(target, { next: null });
   };
 
-  const handleLogout = async () => {
+  const confirmLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setIsAuthenticated(false);
     setUser(null);
+    setShowLogoutModal(false);
     pushUrl("dashboard", { next: null });
   };
 
@@ -427,7 +430,7 @@ function DashboardPage() {
 
             {isAuthenticated ? (
               <button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition-all hover:bg-rose-50 hover:text-rose-800"
               >
                 <LogOut size={16} />
@@ -453,7 +456,7 @@ function DashboardPage() {
                 <p className="text-xs text-[var(--muted)]">{currentMenuLabel}</p>
               </div>
               {isAuthenticated ? (
-                <button onClick={handleLogout} className="text-xs font-semibold text-rose-700">
+                <button onClick={() => setShowLogoutModal(true)} className="text-xs font-semibold text-rose-700">
                   Logout
                 </button>
               ) : (
@@ -492,6 +495,36 @@ function DashboardPage() {
           {renderMainContent()}
         </main>
       </div>
+
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
+          <div className="surface-card w-full max-w-md rounded-2xl border border-[var(--border)] p-6 shadow-[var(--shadow-strong)]">
+            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <TriangleAlert size={18} />
+            </div>
+            <h3 className="display-font text-xl font-bold text-[var(--ink)]">Konfirmasi Logout</h3>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Anda yakin ingin keluar dari sesi sekarang?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmLogout}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+              >
+                Ya, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

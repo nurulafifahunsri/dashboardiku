@@ -11,6 +11,7 @@ import {
   AreaChart,
   Area,
   Cell,
+  LabelList,
 } from "recharts";
 import { IKUData, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle } from "lucide-react";
@@ -86,24 +87,27 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const hierarchyDistribution = useMemo(() => {
     const rows: Array<{
       label: string;
-      parentCount: number | null;
-      childCount: number | null;
+      value: number;
+      progress: number;
+      progressLabel: string;
       kind: "parent" | "child";
       color: string;
     }> = [];
 
     Object.values(SasaranProgram).forEach((category) => {
-      const parentCount = data.filter((item) => item.category === category).length;
+      const categoryItems = data.filter((item) => item.category === category);
+      const parentCount = categoryItems.length;
+      const parentProgress = calculateAchievementRate(categoryItems, year);
       rows.push({
         label: category,
-        parentCount,
-        childCount: null,
+        value: parentCount,
+        progress: parentProgress,
+        progressLabel: `${parentProgress}%`,
         kind: "parent",
         color: categoryColors[category] || "#17624a",
       });
 
-      const groupedChild = data
-        .filter((item) => item.category === category)
+      const groupedChild = categoryItems
         .reduce<Record<string, number>>((acc, item) => {
           acc[item.ikuNum] = (acc[item.ikuNum] || 0) + 1;
           return acc;
@@ -116,10 +120,13 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           return aNum - bNum;
         })
         .forEach(([iku, total]) => {
+          const childItems = categoryItems.filter((item) => item.ikuNum === iku);
+          const childProgress = calculateAchievementRate(childItems, year);
           rows.push({
             label: `  └ ${iku}`,
-            parentCount: null,
-            childCount: total,
+            value: total,
+            progress: childProgress,
+            progressLabel: `${childProgress}%`,
             kind: "child",
             color: categoryColors[category] || "#17624a",
           });
@@ -199,7 +206,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         <article className="surface-card panel-in rounded-3xl p-5 sm:p-6">
           <h3 className="display-font mb-5 text-lg font-bold text-[var(--ink)]">Distribusi Indikator per Sasaran</h3>
           <p className="mb-4 text-sm text-[var(--muted)]">
-            Setiap sasaran menampilkan bar parent, lalu bar child IKU di bawahnya.
+            Menampilkan jumlah indikator per sasaran dan rincian IKU berikut persentase ketercapaian.
           </p>
           <div className="h-[640px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -207,16 +214,27 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                 <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
                 <XAxis type="number" hide />
                 <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "#f2f7f3" }} contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }} />
-                <Bar dataKey="parentCount" name="Parent Sasaran" radius={[0, 8, 8, 0]} minPointSize={2} barSize={24}>
+                <Tooltip
+                  cursor={{ fill: "#f2f7f3" }}
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
+                  formatter={(value: unknown, _name: unknown, item: any) => [`${String(value)} indikator`, `${item?.payload?.progressLabel} ketercapaian`]}
+                />
+                <Bar
+                  dataKey="value"
+                  name="Jumlah Indikator"
+                  radius={[0, 8, 8, 0]}
+                  minPointSize={2}
+                  shape={(props: any) => {
+                    const { x, y, width, height, payload } = props;
+                    const desiredHeight = payload.kind === "parent" ? 20 : 10;
+                    const adjustedY = y + (height - desiredHeight) / 2;
+                    return <rect x={x} y={adjustedY} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
+                  }}
+                >
                   {hierarchyDistribution.map((entry, index) => (
-                    <Cell key={`parent-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0} />
+                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
                   ))}
-                </Bar>
-                <Bar dataKey="childCount" name="Child IKU" radius={[0, 8, 8, 0]} minPointSize={2} barSize={12}>
-                  {hierarchyDistribution.map((entry, index) => (
-                    <Cell key={`child-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "child" ? 0.55 : 0} />
-                  ))}
+                  <LabelList dataKey="progressLabel" position="right" fill="#33473a" fontSize={11} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
