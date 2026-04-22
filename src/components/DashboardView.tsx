@@ -52,6 +52,37 @@ const calculateAchievementRate = (items: IKUData[], targetYear: Year): number =>
   return Math.round((achieved / scored.length) * 100);
 };
 
+const toNumericValue = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/%/g, "").replace(",", ".").trim();
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+};
+
+const aggregateTargetAchievement = (items: IKUData[], targetYear: Year) => {
+  const targetValues = items.map((item) => toNumericValue(item.targets[targetYear])).filter((value): value is number => value !== null);
+  const achievementValues = items
+    .map((item) => toNumericValue(item.achievements?.[targetYear]))
+    .filter((value): value is number => value !== null);
+
+  const average = (values: number[]) => (values.length ? values.reduce((sum, current) => sum + current, 0) / values.length : 0);
+
+  const targetPercent = Number(average(targetValues).toFixed(1));
+  const achievementPercent = Number(average(achievementValues).toFixed(1));
+
+  return {
+    targetPercent,
+    achievementPercent,
+    targetLabel: `${targetPercent}%`,
+    achievementLabel: `${achievementPercent}%`,
+  };
+};
+
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
 
@@ -87,22 +118,23 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const hierarchyDistribution = useMemo(() => {
     const rows: Array<{
       label: string;
-      value: number;
-      progress: number;
-      progressLabel: string;
+      targetPercent: number;
+      achievementPercent: number;
+      targetLabel: string;
+      achievementLabel: string;
       kind: "parent" | "child";
       color: string;
     }> = [];
 
     Object.values(SasaranProgram).forEach((category) => {
       const categoryItems = data.filter((item) => item.category === category);
-      const parentCount = categoryItems.length;
-      const parentProgress = calculateAchievementRate(categoryItems, year);
+      const parentAggregate = aggregateTargetAchievement(categoryItems, year);
       rows.push({
         label: category,
-        value: parentCount,
-        progress: parentProgress,
-        progressLabel: `${parentProgress}%`,
+        targetPercent: parentAggregate.targetPercent,
+        achievementPercent: parentAggregate.achievementPercent,
+        targetLabel: parentAggregate.targetLabel,
+        achievementLabel: parentAggregate.achievementLabel,
         kind: "parent",
         color: categoryColors[category] || "#17624a",
       });
@@ -119,14 +151,15 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           const bNum = Number(b[0].replace(/\D/g, ""));
           return aNum - bNum;
         })
-        .forEach(([iku, total]) => {
+        .forEach(([iku]) => {
           const childItems = categoryItems.filter((item) => item.ikuNum === iku);
-          const childProgress = calculateAchievementRate(childItems, year);
+          const childAggregate = aggregateTargetAchievement(childItems, year);
           rows.push({
             label: `  └ ${iku}`,
-            value: total,
-            progress: childProgress,
-            progressLabel: `${childProgress}%`,
+            targetPercent: childAggregate.targetPercent,
+            achievementPercent: childAggregate.achievementPercent,
+            targetLabel: childAggregate.targetLabel,
+            achievementLabel: childAggregate.achievementLabel,
             kind: "child",
             color: categoryColors[category] || "#17624a",
           });
@@ -134,7 +167,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     });
 
     return rows;
-  }, [data]);
+  }, [data, year]);
 
   const yearlyTrend = useMemo(
     () =>
@@ -206,35 +239,53 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         <article className="surface-card panel-in rounded-3xl p-5 sm:p-6">
           <h3 className="display-font mb-5 text-lg font-bold text-[var(--ink)]">Distribusi Indikator per Sasaran</h3>
           <p className="mb-4 text-sm text-[var(--muted)]">
-            Menampilkan jumlah indikator per sasaran dan rincian IKU berikut persentase ketercapaian.
+            Menampilkan ringkasan nilai target dan capaian pada setiap sasaran serta rincian IKU.
           </p>
           <div className="h-[640px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={hierarchyDistribution} layout="vertical" margin={{ left: 24, right: 22, top: 8, bottom: 8 }} barCategoryGap={8}>
                 <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
-                <XAxis type="number" hide />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
                 <Tooltip
                   cursor={{ fill: "#f2f7f3" }}
                   contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
-                  formatter={(value: unknown, _name: unknown, item: any) => [`${String(value)} indikator`, `${item?.payload?.progressLabel} ketercapaian`]}
+                  formatter={(value: unknown, name: unknown) => [`${String(value)}%`, String(name)]}
                 />
                 <Bar
-                  dataKey="value"
-                  name="Jumlah Indikator"
+                  dataKey="targetPercent"
+                  name="Target"
                   radius={[0, 8, 8, 0]}
                   minPointSize={2}
                   shape={(props: any) => {
                     const { x, y, width, height, payload } = props;
                     const desiredHeight = payload.kind === "parent" ? 20 : 10;
                     const adjustedY = y + (height - desiredHeight) / 2;
-                    return <rect x={x} y={adjustedY} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
+                    return <rect x={x} y={adjustedY - (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill="#7a8e85" fillOpacity={payload.kind === "parent" ? 0.9 : 0.5} />;
                   }}
                 >
                   {hierarchyDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
+                    <Cell key={`target-cell-${index}`} fill="#7a8e85" fillOpacity={entry.kind === "parent" ? 0.9 : 0.5} />
                   ))}
-                  <LabelList dataKey="progressLabel" position="right" fill="#33473a" fontSize={11} />
+                  <LabelList dataKey="targetLabel" position="right" fill="#33473a" fontSize={11} />
+                </Bar>
+
+                <Bar
+                  dataKey="achievementPercent"
+                  name="Capaian"
+                  radius={[0, 8, 8, 0]}
+                  minPointSize={2}
+                  shape={(props: any) => {
+                    const { x, y, width, height, payload } = props;
+                    const desiredHeight = payload.kind === "parent" ? 20 : 10;
+                    const adjustedY = y + (height - desiredHeight) / 2;
+                    return <rect x={x} y={adjustedY + (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
+                  }}
+                >
+                  {hierarchyDistribution.map((entry, index) => (
+                    <Cell key={`achievement-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
+                  ))}
+                  <LabelList dataKey="achievementLabel" position="right" fill="#1f352a" fontSize={11} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
