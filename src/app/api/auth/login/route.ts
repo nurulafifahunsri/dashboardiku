@@ -8,22 +8,25 @@ export async function POST(req: Request) {
         const { username, password } = await req.json();
 
         if (!username || !password) {
-            return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
+            return NextResponse.json({ error: 'Username/email dan password wajib diisi' }, { status: 400 });
         }
 
-        const user = await User.findOne({ where: { username } });
+        const user = await User.findOne({
+            where: {
+                ...(username.includes('@') ? { email: username } : { username }),
+            }
+        });
 
         if (!user) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+            return NextResponse.json({ error: 'Kredensial tidak valid' }, { status: 401 });
         }
 
         const isMatch = await bcrypt.compare(password, user.getDataValue('password_hash'));
 
         if (!isMatch) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+            return NextResponse.json({ error: 'Kredensial tidak valid' }, { status: 401 });
         }
 
-        // Pass the user ID and role securely
         await createSession({
             userId: user.getDataValue('id'),
             role: user.getDataValue('role'),
@@ -34,12 +37,12 @@ export async function POST(req: Request) {
                 id: user.getDataValue('id'),
                 username: user.getDataValue('username'),
                 name: user.getDataValue('name'),
+                email: user.getDataValue('email'),
                 role: user.getDataValue('role'),
             }
         });
 
     } catch (error) {
-        console.error('Login error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: 'Terjadi kesalahan pada proses login' }, { status: 500 });
     }
 }

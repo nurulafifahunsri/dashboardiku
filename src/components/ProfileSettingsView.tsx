@@ -5,12 +5,13 @@ interface Props {
     user: {
         username: string;
         name: string;
+        email: string;
     };
     onRefreshSession: () => void;
 }
 
 const ProfileSettingsView: React.FC<Props> = ({ user, onRefreshSession }) => {
-    const [profileForm, setProfileForm] = useState({ name: user.name, username: user.username });
+    const [profileForm, setProfileForm] = useState({ name: user.name, username: user.username, email: user.email });
     const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
 
     const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
@@ -83,6 +84,10 @@ const ProfileSettingsView: React.FC<Props> = ({ user, onRefreshSession }) => {
                     <label className="block">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Nama Lengkap</span>
                         <input value={profileForm.name} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm" required />
+                    </label>
+                    <label className="block">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Email</span>
+                        <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="w-full rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm" required />
                     </label>
                     <div className="pt-2">
                         <button disabled={loading} type="submit" className="rounded-xl bg-[var(--ink)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-black/80">Simpan Profil</button>

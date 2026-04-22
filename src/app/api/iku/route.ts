@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { IkuRecord } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { verifySession } from '@/lib/auth';
 
 const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
 
@@ -69,6 +70,11 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const session = await verifySession();
+    if (!session) {
+        return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+    }
+
     try {
         const body = await req.json();
         const error = validatePayload(body);

@@ -3,8 +3,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
-    up: async (queryInterface, Sequelize) => {
-        // Generate hashed password for "123456"
+    up: async (queryInterface) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash('123456', salt);
 
@@ -13,6 +12,7 @@ module.exports = {
                 id: uuidv4(),
                 username: 'adminFasilkom',
                 name: 'Administrator',
+                email: 'admin@fasilkom.local',
                 password_hash: hashedPassword,
                 role: 'admin',
                 createdAt: new Date(),
@@ -21,7 +21,7 @@ module.exports = {
         ], {});
     },
 
-    down: async (queryInterface, Sequelize) => {
+    down: async (queryInterface) => {
         await queryInterface.bulkDelete('users', null, {});
     }
 };

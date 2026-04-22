@@ -1,37 +1,38 @@
 "use client";
-import React, { useState } from 'react';
-import { Lock, User, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import React, { useState } from "react";
+import { Lock, User, ShieldCheck, AlertCircle, ArrowRight, KeyRound } from "lucide-react";
 
 interface Props {
   onLoginSuccess: () => void;
+  onForgotPassword: () => void;
 }
 
-const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword }) => {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Autentikasi gagal');
+        throw new Error(data.error || "Autentikasi gagal");
       }
 
       onLoginSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan sistem');
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem");
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
             <div>
               <h1 className="display-font text-2xl font-bold text-[var(--ink)]">IKU Fasilkom</h1>
-              <p className="text-sm text-[var(--muted)]">Performance Control Center</p>
+              <p className="text-sm text-[var(--muted)]">Pusat Kendali Kinerja</p>
             </div>
           </div>
 
@@ -67,7 +68,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Mode</p>
-              <p className="mt-1 text-sm font-semibold text-[var(--ink)]">Target Monitoring</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--ink)]">Pemantauan Target</p>
             </div>
           </div>
         </section>
@@ -84,7 +85,9 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
             )}
 
             <label className="block">
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Username</span>
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                Username atau Email
+              </span>
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-700">
                   <User size={17} />
@@ -93,7 +96,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="adminFasilkom"
+                  placeholder="adminFasilkom atau admin@fasilkom.local"
                   className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
                   required
                 />
@@ -118,11 +121,20 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess }) => {
             </label>
 
             <button
+              type="button"
+              onClick={onForgotPassword}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+            >
+              <KeyRound size={15} />
+              Lupa password?
+            </button>
+
+            <button
               type="submit"
               disabled={loading}
               className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-3 text-sm font-bold text-white transition-all hover:translate-y-[-1px] hover:bg-emerald-800 disabled:opacity-70"
             >
-              {loading ? 'Authenticating...' : 'Sign In'}
+              {loading ? "Memverifikasi..." : "Masuk"}
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </button>
           </form>

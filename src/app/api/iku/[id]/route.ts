@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { IkuRecord } from '@/lib/db';
+import { verifySession } from '@/lib/auth';
 
 const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
 
@@ -59,6 +60,11 @@ const validatePayload = (payload: any) => {
 };
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const session = await verifySession();
+    if (!session) {
+        return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+    }
+
     try {
         const body = await req.json();
         const error = validatePayload(body);
@@ -77,6 +83,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const session = await verifySession();
+    if (!session) {
+        return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+    }
+
     try {
         const { id } = await params;
         const found = await IkuRecord.findByPk(id);

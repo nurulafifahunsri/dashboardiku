@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { IkuRecord } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { verifySession } from '@/lib/auth';
 
 const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
 
@@ -39,6 +40,11 @@ const validatePayload = (payload: any) => {
 };
 
 export async function POST(req: Request) {
+    const session = await verifySession();
+    if (!session) {
+        return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+    }
+
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File | null;

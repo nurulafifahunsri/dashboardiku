@@ -13,7 +13,6 @@ export const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
     logging: false,
 });
 
-type Year = 2025 | 2026 | 2027 | 2028 | 2029 | 2030;
 type SasaranProgram = string;
 
 export interface IkuRecordAttributes {
@@ -42,8 +41,21 @@ export interface UserAttributes {
     id?: string;
     username: string;
     name: string;
+    email: string;
     password_hash: string;
     role: 'admin' | 'viewer';
+    reset_token?: string | null;
+    reset_token_expires_at?: Date | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+export interface MasterYearAttributes {
+    id?: string;
+    year: '2025' | '2026' | '2027' | '2028' | '2029' | '2030';
+    label: string;
+    is_active: boolean;
+    sort_order: number;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -90,6 +102,14 @@ export const User = sequelize.define<Model<UserAttributes>>('User', {
         type: DataTypes.STRING,
         allowNull: false,
     },
+    email: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+        validate: {
+            isEmail: true,
+        },
+    },
     password_hash: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -98,8 +118,46 @@ export const User = sequelize.define<Model<UserAttributes>>('User', {
         type: DataTypes.ENUM('admin', 'viewer'),
         defaultValue: 'viewer',
         allowNull: false,
+    },
+    reset_token: {
+        type: DataTypes.STRING(128),
+        allowNull: true,
+    },
+    reset_token_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
     }
 }, {
     tableName: 'users',
+    timestamps: true,
+});
+
+export const MasterYear = sequelize.define<Model<MasterYearAttributes>>('MasterYear', {
+    id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+    },
+    year: {
+        type: DataTypes.ENUM('2025', '2026', '2027', '2028', '2029', '2030'),
+        allowNull: false,
+        unique: true,
+    },
+    label: {
+        type: DataTypes.STRING(120),
+        allowNull: false,
+    },
+    is_active: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+    },
+    sort_order: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    }
+}, {
+    tableName: 'master_years',
     timestamps: true,
 });

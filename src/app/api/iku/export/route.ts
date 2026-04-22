@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { IkuRecord } from '@/lib/db';
+import { verifySession } from '@/lib/auth';
 
 const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
 
@@ -58,6 +59,11 @@ const excelRowsFromIku = (data: any[]) => {
 };
 
 export async function GET() {
+    const session = await verifySession();
+    if (!session) {
+        return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+    }
+
     try {
         const rows = await IkuRecord.findAll({ order: [['createdAt', 'ASC']] });
         const data = rows.map((row) => rowToIkuData(row.get({ plain: true })));

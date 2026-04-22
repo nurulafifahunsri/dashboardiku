@@ -113,11 +113,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
 
                 return (
                   <tr key={item.id} className="border-b border-[var(--border)] last:border-none hover:bg-[var(--surface-2)]">
-                    <td className="px-5 py-4 align-top">
-                      <span className="inline-flex rounded-full border border-[var(--border)] bg-white px-2.5 py-1 text-xs font-semibold text-[var(--ink)]">
-                        {item.ikuNum}
-                      </span>
-                    </td>
+                    <td className="px-5 py-4 align-top text-sm font-semibold text-[var(--ink)]">{item.ikuNum}</td>
                     <td className="px-5 py-4 align-top">
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5">{getIcon(item.ikuNum)}</span>
@@ -180,7 +176,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
 
               <div className="mt-4">
                 <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.11em] text-[var(--muted)]">
-                  <span>Progress</span>
+                  <span>Progres</span>
                   <span>{percentage.toFixed(1)}%</span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
