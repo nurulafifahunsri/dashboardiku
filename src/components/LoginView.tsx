@@ -105,7 +105,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="adminFasilkom atau admin@fasilkom.local"
+                    placeholder="Ex. johndoe@gmail.com"
                     className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
                     required
                   />
@@ -129,16 +129,16 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                 </div>
               </label>
 
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onForgotPassword}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                <KeyRound size={15} />
-                Lupa password?
-              </button>
-            </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                >
+                  <KeyRound size={15} />
+                  Lupa password?
+                </button>
+              </div>
 
               <button
                 type="submit"
