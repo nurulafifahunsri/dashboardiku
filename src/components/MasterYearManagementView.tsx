@@ -25,6 +25,13 @@ const defaultForm: FormState = {
 };
 
 const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"semua" | "aktif" | "nonaktif">("semua");
+  const [sortKey, setSortKey] = useState<"year" | "label" | "sortOrder">("year");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [form, setForm] = useState<FormState>(defaultForm);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,6 +39,38 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
   const [message, setMessage] = useState("");
 
   const usedYears = useMemo(() => new Set(years.map((y) => y.year)), [years]);
+  const filteredRows = useMemo(() => {
+    const lowered = search.toLowerCase().trim();
+    return years.filter((item) => {
+      const matchesSearch =
+        !lowered ||
+        item.year.toLowerCase().includes(lowered) ||
+        item.label.toLowerCase().includes(lowered);
+      const matchesStatus =
+        statusFilter === "semua" ||
+        (statusFilter === "aktif" ? item.isActive : !item.isActive);
+      return matchesSearch && matchesStatus;
+    });
+  }, [years, search, statusFilter]);
+
+  const sortedRows = useMemo(() => {
+    const rows = [...filteredRows];
+    rows.sort((a, b) => {
+      const aValue = String(a[sortKey]).toLowerCase();
+      const bValue = String(b[sortKey]).toLowerCase();
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [filteredRows, sortKey, sortDirection]);
+
+  const totalRows = sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalRows);
+  const pagedRows = sortedRows.slice(startIndex, endIndex);
 
   const resetForm = () => {
     setForm(defaultForm);
@@ -105,10 +144,19 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
     setMessage("");
   };
 
+  const handleSort = (key: "year" | "label" | "sortOrder") => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
   return (
     <div className="space-y-5">
       <section className="surface-card rounded-3xl p-5 sm:p-6">
-        <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Master Tahun</h2>
+        <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Daftar Tahun</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
           Kelola daftar tahun untuk seluruh dashboard dan modul manajemen data.
         </p>
@@ -196,19 +244,82 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
       </section>
 
       <section className="surface-card rounded-3xl p-5 sm:p-6">
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <label className="text-sm md:col-span-2">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Cari Tahun</span>
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari tahun atau label..."
+              className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Filter Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as "semua" | "aktif" | "nonaktif");
+                setCurrentPage(1);
+              }}
+              className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
+            >
+              <option value="semua">Semua</option>
+              <option value="aktif">Aktif</option>
+              <option value="nonaktif">Nonaktif</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-[var(--muted)]">
+            Menampilkan <strong>{totalRows === 0 ? 0 : startIndex + 1}</strong>-<strong>{endIndex}</strong> dari <strong>{totalRows}</strong> data.
+          </p>
+          <label className="text-sm">
+            <span className="mr-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Data/Halaman</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+            </select>
+          </label>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
-                <th className="px-3 py-2 text-xs">Tahun</th>
-                <th className="px-3 py-2 text-xs">Label</th>
+                <th className="px-3 py-2 text-xs">
+                  <button type="button" onClick={() => handleSort("year")} className="font-semibold">
+                    Tahun
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-xs">
+                  <button type="button" onClick={() => handleSort("label")} className="font-semibold">
+                    Label
+                  </button>
+                </th>
                 <th className="px-3 py-2 text-xs">Status</th>
-                <th className="px-3 py-2 text-xs">Urutan</th>
+                <th className="px-3 py-2 text-xs">
+                  <button type="button" onClick={() => handleSort("sortOrder")} className="font-semibold">
+                    Urutan
+                  </button>
+                </th>
                 <th className="px-3 py-2 text-xs text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {years.map((year) => (
+              {pagedRows.map((year) => (
                 <tr key={year.id} className="border-b border-[var(--border)]">
                   <td className="px-3 py-2 text-sm font-semibold">{year.year}</td>
                   <td className="px-3 py-2 text-sm">{year.label}</td>
@@ -234,15 +345,39 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
                   </td>
                 </tr>
               ))}
-              {years.length === 0 && (
+              {pagedRows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-4 text-center text-sm text-[var(--muted)]">
-                    Belum ada data master tahun.
+                    Tidak ada data tahun sesuai filter.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--muted)]">
+            Halaman <strong>{safeCurrentPage}</strong> dari <strong>{totalPages}</strong>
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={safeCurrentPage === 1}
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+            >
+              Sebelumnya
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={safeCurrentPage === totalPages}
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+            >
+              Berikutnya
+            </button>
+          </div>
         </div>
       </section>
     </div>

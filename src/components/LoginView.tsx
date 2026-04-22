@@ -5,9 +5,10 @@ import { Lock, User, ShieldCheck, AlertCircle, ArrowRight, KeyRound } from "luci
 interface Props {
   onLoginSuccess: () => void;
   onForgotPassword: () => void;
+  onBackToDashboard: () => void;
 }
 
-const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword }) => {
+const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackToDashboard }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -43,6 +44,14 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword }) => {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_5%_5%,rgba(23,98,74,0.2),transparent_28%),radial-gradient(circle_at_85%_90%,rgba(206,123,52,0.2),transparent_30%),linear-gradient(180deg,#f6faf4_0%,#edf4ff_100%)]" />
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.05fr_1fr]">
         <section className="surface-card panel-in rounded-3xl p-7 sm:p-9">
+          <button
+            type="button"
+            onClick={onBackToDashboard}
+            className="mb-4 inline-flex items-center rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink)]"
+          >
+            Kembali ke Dasbor
+          </button>
+
           <div className="mb-8 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-white">
               <ShieldCheck size={24} />
@@ -57,7 +66,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword }) => {
             Pantau capaian target strategis secara lebih presisi.
           </h2>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--muted)]">
-            Dashboard ini menyatukan metrik IKU, perbandingan target, dan area prioritas agar keputusan
+            Dasbor ini menyatukan metrik IKU, perbandingan target, dan area prioritas agar keputusan
             program bisa dieksekusi lebih cepat.
           </p>
 
@@ -74,7 +83,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword }) => {
         </section>
 
         <section className="surface-card panel-in rounded-3xl p-7 shadow-[var(--shadow-strong)] sm:p-9">
-          <h3 className="display-font text-xl font-bold text-[var(--ink)]">Dashboard IKU Fasilkom</h3>
+          <h3 className="display-font text-xl font-bold text-[var(--ink)]">Dasbor IKU Fasilkom</h3>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             {error && (

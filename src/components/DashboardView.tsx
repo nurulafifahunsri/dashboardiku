@@ -52,7 +52,6 @@ const calculateAchievementRate = (items: IKUData[], targetYear: Year): number =>
 };
 
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
-  const [selectedParent, setSelectedParent] = useState<SasaranProgram>(SasaranProgram.Talenta);
   const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
 
   const categoryColors: Record<string, string> = {
@@ -84,28 +83,51 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     { title: "Tahun Aktif", value: year, icon: BarChart3, tone: "bg-amber-100 text-amber-700" },
   ];
 
-  const categoryDistribution = Object.values(SasaranProgram).map((category) => ({
-    name: category,
-    count: data.filter((item) => item.category === category).length,
-    color: categoryColors[category] || "#17624a",
-  }));
+  const hierarchyDistribution = useMemo(() => {
+    const rows: Array<{
+      label: string;
+      parentCount: number | null;
+      childCount: number | null;
+      kind: "parent" | "child";
+      color: string;
+    }> = [];
 
-  const childIkuDistribution = useMemo(() => {
-    const grouped = data
-      .filter((item) => item.category === selectedParent)
-      .reduce<Record<string, number>>((acc, item) => {
-        acc[item.ikuNum] = (acc[item.ikuNum] || 0) + 1;
-        return acc;
-      }, {});
-
-    return Object.entries(grouped)
-      .map(([iku, total]) => ({ iku, total }))
-      .sort((a, b) => {
-        const aNum = Number(a.iku.replace(/\D/g, ""));
-        const bNum = Number(b.iku.replace(/\D/g, ""));
-        return aNum - bNum;
+    Object.values(SasaranProgram).forEach((category) => {
+      const parentCount = data.filter((item) => item.category === category).length;
+      rows.push({
+        label: category,
+        parentCount,
+        childCount: null,
+        kind: "parent",
+        color: categoryColors[category] || "#17624a",
       });
-  }, [data, selectedParent]);
+
+      const groupedChild = data
+        .filter((item) => item.category === category)
+        .reduce<Record<string, number>>((acc, item) => {
+          acc[item.ikuNum] = (acc[item.ikuNum] || 0) + 1;
+          return acc;
+        }, {});
+
+      Object.entries(groupedChild)
+        .sort((a, b) => {
+          const aNum = Number(a[0].replace(/\D/g, ""));
+          const bNum = Number(b[0].replace(/\D/g, ""));
+          return aNum - bNum;
+        })
+        .forEach(([iku, total]) => {
+          rows.push({
+            label: `  └ ${iku}`,
+            parentCount: null,
+            childCount: total,
+            kind: "child",
+            color: categoryColors[category] || "#17624a",
+          });
+        });
+    });
+
+    return rows;
+  }, [data]);
 
   const yearlyTrend = useMemo(
     () =>
@@ -173,59 +195,29 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <section>
         <article className="surface-card panel-in rounded-3xl p-5 sm:p-6">
           <h3 className="display-font mb-5 text-lg font-bold text-[var(--ink)]">Distribusi Indikator per Sasaran</h3>
-          <div className="h-[300px]">
+          <p className="mb-4 text-sm text-[var(--muted)]">
+            Setiap sasaran menampilkan bar parent, lalu bar child IKU di bawahnya.
+          </p>
+          <div className="h-[640px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryDistribution} layout="vertical" margin={{ left: 24, right: 22, top: 8, bottom: 8 }}>
+              <BarChart data={hierarchyDistribution} layout="vertical" margin={{ left: 24, right: 22, top: 8, bottom: 8 }} barCategoryGap={8}>
                 <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={108} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
+                <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "#f2f7f3" }} contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }} />
-                <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={28}>
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                      onClick={() => setSelectedParent(entry.name as SasaranProgram)}
-                      cursor="pointer"
-                    />
+                <Bar dataKey="parentCount" name="Parent Sasaran" radius={[0, 8, 8, 0]} minPointSize={2} barSize={24}>
+                  {hierarchyDistribution.map((entry, index) => (
+                    <Cell key={`parent-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0} />
                   ))}
                 </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {Object.values(SasaranProgram).map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => setSelectedParent(category)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  selectedParent === category ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-white text-[var(--ink)]"
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="surface-card panel-in rounded-3xl p-5 sm:p-6">
-          <h3 className="display-font mb-2 text-lg font-bold text-[var(--ink)]">Detail Child IKU: {selectedParent}</h3>
-          <p className="mb-4 text-sm text-[var(--muted)]">
-            Menampilkan distribusi jumlah indikator untuk setiap IKU pada sasaran yang dipilih.
-          </p>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={childIkuDistribution} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
-                <XAxis dataKey="iku" tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#63756b" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }} />
-                <Bar dataKey="total" name="Jumlah Indikator" radius={[8, 8, 0, 0]} fill={categoryColors[selectedParent]} />
+                <Bar dataKey="childCount" name="Child IKU" radius={[0, 8, 8, 0]} minPointSize={2} barSize={12}>
+                  {hierarchyDistribution.map((entry, index) => (
+                    <Cell key={`child-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "child" ? 0.55 : 0} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

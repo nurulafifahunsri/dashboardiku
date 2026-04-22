@@ -14,7 +14,6 @@ import {
   User,
   KeyRound,
   ShieldCheck,
-  Lock,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -66,16 +65,16 @@ const PUBLIC_MENUS: MenuKey[] = [
 const PRIVATE_MENUS: MenuKey[] = ["manajemen-data", "manajemen-user", "master-tahun", "profil"];
 
 const menuLabels: Record<MenuKey, string> = {
-  dashboard: "Dashboard",
+  dashboard: "Dasbor",
   talenta: SasaranProgram.Talenta,
   inovasi: SasaranProgram.Inovasi,
   kontribusi: SasaranProgram.Kontribusi,
   "tata-kelola": SasaranProgram.TataKelola,
   "manajemen-data": "Manajemen Data",
   "manajemen-user": "Manajemen User",
-  "master-tahun": "Master Tahun",
+  "master-tahun": "Daftar Tahun",
   profil: "Profil",
-  login: "Login",
+  login: "Masuk",
   "lupa-password": "Lupa Password",
   "reset-password": "Reset Password",
 };
@@ -230,11 +229,13 @@ function DashboardPage() {
   };
 
   const publicNavMenus: MenuKey[] = ["dashboard", "talenta", "inovasi", "kontribusi", "tata-kelola"];
-  const privateNavMenus: MenuKey[] = [
-    "manajemen-data",
-    ...(user?.role === "admin" ? (["manajemen-user", "master-tahun"] as MenuKey[]) : []),
-    ...(isAuthenticated ? (["profil"] as MenuKey[]) : []),
-  ];
+  const privateNavMenus: MenuKey[] = isAuthenticated
+    ? [
+        "manajemen-data",
+        ...(user?.role === "admin" ? (["manajemen-user", "master-tahun"] as MenuKey[]) : []),
+        "profil",
+      ]
+    : [];
 
   const currentCategory = useMemo(() => {
     if (menu === "talenta") return SasaranProgram.Talenta;
@@ -258,6 +259,7 @@ function DashboardPage() {
         <LoginView
           onLoginSuccess={handleLoginSuccess}
           onForgotPassword={() => pushUrl("lupa-password", { next: null })}
+          onBackToDashboard={() => pushUrl("dashboard", { next: null })}
         />
       );
     }
@@ -301,6 +303,7 @@ function DashboardPage() {
         <LoginView
           onLoginSuccess={handleLoginSuccess}
           onForgotPassword={() => pushUrl("lupa-password", { next: null })}
+          onBackToDashboard={() => pushUrl("dashboard", { next: null })}
         />
       );
     }
@@ -348,19 +351,19 @@ function DashboardPage() {
   return (
     <div className="min-h-screen px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8">
       <div className="mx-auto flex w-full max-w-[1450px] gap-4 lg:gap-6">
-        <aside className="glass-surface hidden w-[300px] flex-shrink-0 rounded-3xl border border-[var(--border)] p-4 shadow-[var(--shadow-soft)] md:flex md:flex-col">
+        <aside className="glass-surface sticky top-4 hidden h-fit w-[300px] flex-shrink-0 self-start rounded-3xl border border-[var(--border)] p-4 shadow-[var(--shadow-soft)] md:flex md:flex-col">
           <div className="rounded-2xl bg-[var(--primary)] p-5 text-white">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
               <span className="display-font text-sm">IKU</span>
             </div>
-            <h1 className="display-font text-xl font-bold">Dashboard IKU Fasilkom</h1>
+            <h1 className="display-font text-xl font-bold">Dasbor IKU Fasilkom</h1>
             <p className="mt-1 text-xs text-emerald-100/90">
-              {isAuthenticated ? `Halo, ${user?.name}` : "Dashboard publik terbuka untuk semua pengunjung"}
+              {isAuthenticated ? `Halo, ${user?.name}` : "Dasbor publik terbuka untuk semua pengunjung"}
             </p>
             {isAuthenticated && <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em]">{user?.role}</p>}
           </div>
 
-          <nav className="mt-5 space-y-1.5 flex-1 overflow-y-auto pr-2">
+          <nav className="mt-5 space-y-1.5 pr-2">
             {publicNavMenus.map((item) => {
               const Icon = menuIcons[item]!;
               return (
@@ -380,33 +383,30 @@ function DashboardPage() {
               );
             })}
 
-            <div className="my-3 border-t border-[var(--border)] pt-3">
-              {["manajemen-data", "manajemen-user", "master-tahun", "profil"].map((item) => {
-                const menuKey = item as MenuKey;
-                const Icon = menuIcons[menuKey]!;
-                const canShow = menuKey === "manajemen-data" || menuKey === "profil" || user?.role === "admin";
-                if (!canShow) return null;
-                const isDisabled = !isAuthenticated;
-                return (
-                  <button
-                    key={item}
-                    onClick={() => goToMenu(menuKey)}
-                    className={`group mb-1.5 flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${
-                      menu === menuKey
-                        ? "bg-[var(--primary)] text-white shadow-lg shadow-emerald-950/20"
-                        : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
-                    }`}
-                  >
-                    <Icon size={18} className={menu === menuKey ? "text-white" : "text-emerald-700/80 group-hover:text-emerald-700"} />
-                    <span>{menuLabels[menuKey]}</span>
-                    {isDisabled && <Lock size={13} className="ml-auto text-amber-600" />}
-                  </button>
-                );
-              })}
-            </div>
+            {isAuthenticated && (
+              <div className="my-3 border-t border-[var(--border)] pt-3">
+                {privateNavMenus.map((menuKey) => {
+                  const Icon = menuIcons[menuKey]!;
+                  return (
+                    <button
+                      key={menuKey}
+                      onClick={() => goToMenu(menuKey)}
+                      className={`group mb-1.5 flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${
+                        menu === menuKey
+                          ? "bg-[var(--primary)] text-white shadow-lg shadow-emerald-950/20"
+                          : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                      }`}
+                    >
+                      <Icon size={18} className={menu === menuKey ? "text-white" : "text-emerald-700/80 group-hover:text-emerald-700"} />
+                      <span>{menuLabels[menuKey]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
-          <div className="mt-auto space-y-3 pt-4">
+          <div className="space-y-3 pt-4">
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
                 <CalendarClock size={14} />
