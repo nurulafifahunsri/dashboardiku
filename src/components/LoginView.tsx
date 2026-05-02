@@ -63,7 +63,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
           </div>
 
           <h2 className="display-font max-w-sm text-3xl font-bold leading-tight text-[var(--ink)]">
-            Pantau capaian target strategis secara lebih presisi.
+            Pantau realisasi target strategis secara lebih presisi.
           </h2>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--muted)]">
             Dasbor ini menyatukan metrik IKU, perbandingan target, dan area prioritas agar keputusan

@@ -292,7 +292,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
             </div>
 
             <div className="rounded-xl border border-[var(--border)] bg-white p-3 sm:p-4">
-              <p className="mb-3 text-sm font-bold text-[var(--ink)]">Capaian</p>
+              <p className="mb-3 text-sm font-bold text-[var(--ink)]">Realisasi</p>
               <div className="grid grid-cols-2 gap-3">
                 {availableYears.map((year) => (
                   <label key={`achievement-${year}`} className="text-xs">
@@ -424,7 +424,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                   </button>
                 </th>
                 <th className="px-3 py-2 text-xs">Target {currentYear}</th>
-                <th className="px-3 py-2 text-xs">Capaian {currentYear}</th>
+                <th className="px-3 py-2 text-xs">Realisasi {currentYear}</th>
                 <th className="px-3 py-2 text-xs">Aksi</th>
               </tr>
             </thead>

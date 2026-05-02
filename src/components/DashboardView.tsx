@@ -13,9 +13,10 @@ import {
   Cell,
   LabelList,
   Label,
+  Legend,
 } from "recharts";
 import { IKUData, Year, SasaranProgram } from "../types";
-import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle } from "lucide-react";
+import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle, X } from "lucide-react";
 
 interface Props {
   year: Year;
@@ -35,13 +36,17 @@ const categoryColors: Record<SasaranProgram, string> = {
 };
 
 type DistributionRow = {
-  label: string;
-  targetPercent: number;
-  achievementPercent: number;
-  targetLabel: string;
-  achievementLabel: string;
-  kind: "parent" | "child";
+  category: SasaranProgram;
+  ikuNum: string;
+  indicatorCount: number;
+  indicatorNames: string[];
+  indicators: IKUData[];
   color: string;
+};
+
+const formatDisplayValue = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return "-";
+  return String(value);
 };
 
 const compareAchievement = (item: IKUData, targetYear: Year): boolean | null => {
@@ -82,27 +87,42 @@ const toNumericValue = (value: unknown): number | null => {
   return null;
 };
 
-const aggregateTargetAchievement = (items: IKUData[], targetYear: Year) => {
-  const targetValues = items.map((item) => toNumericValue(item.targets[targetYear])).filter((value): value is number => value !== null);
-  const achievementValues = items
-    .map((item) => toNumericValue(item.achievements?.[targetYear]))
-    .filter((value): value is number => value !== null);
+const IndicatorListTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const indicatorNames = payload[0]?.payload?.indicatorNames as string[] | undefined;
+  if (!indicatorNames?.length) return null;
 
-  const average = (values: number[]) => (values.length ? values.reduce((sum, current) => sum + current, 0) / values.length : 0);
+  return (
+    <div className="max-w-sm rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink)] shadow-[var(--shadow-soft)]">
+      <div className="space-y-1">
+        {indicatorNames.map((name) => (
+          <p key={name}>{name}</p>
+        ))}
+      </div>
+    </div>
+  );
+};
 
-  const targetPercent = Number(average(targetValues).toFixed(1));
-  const achievementPercent = Number(average(achievementValues).toFixed(1));
+const TargetRealizationTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
 
-  return {
-    targetPercent,
-    achievementPercent,
-    targetLabel: `${targetPercent}%`,
-    achievementLabel: `${achievementPercent}%`,
-  };
+  return (
+    <div className="max-w-xs rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs text-[var(--ink)] shadow-[var(--shadow-soft)]">
+      <p className="mb-2 font-bold leading-snug">{label}</p>
+      <p>
+        <span className="font-semibold text-[var(--muted)]">Target:</span> {row?.targetRaw ?? "-"}
+      </p>
+      <p>
+        <span className="font-semibold text-[var(--muted)]">Realisasi:</span> {row?.realizationRaw ?? "-"}
+      </p>
+    </div>
+  );
 };
 
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
+  const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
 
   const indicatorsWithData = data.filter((item) => compareAchievement(item, year) !== null);
   const achievedCount = indicatorsWithData.filter((item) => compareAchievement(item, year)).length;
@@ -129,41 +149,26 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const distributionByCategory = useMemo(() => {
     return Object.values(SasaranProgram).map((category) => {
       const categoryItems = data.filter((item) => item.category === category);
-      const parentAggregate = aggregateTargetAchievement(categoryItems, year);
-      const rows: DistributionRow[] = [{
-        label: "Total Sasaran",
-        targetPercent: parentAggregate.targetPercent,
-        achievementPercent: parentAggregate.achievementPercent,
-        targetLabel: parentAggregate.targetLabel,
-        achievementLabel: parentAggregate.achievementLabel,
-        kind: "parent",
-        color: categoryColors[category],
-      }];
-
       const groupedChild = categoryItems
         .reduce<Record<string, IKUData[]>>((acc, item) => {
           acc[item.ikuNum] = [...(acc[item.ikuNum] || []), item];
           return acc;
         }, {});
 
-      Object.entries(groupedChild)
+      const rows = Object.entries(groupedChild)
         .sort((a, b) => {
           const aNum = Number(a[0].replace(/\D/g, ""));
           const bNum = Number(b[0].replace(/\D/g, ""));
           return aNum - bNum;
         })
-        .forEach(([iku, childItems]) => {
-          const childAggregate = aggregateTargetAchievement(childItems, year);
-          rows.push({
-            label: iku,
-            targetPercent: childAggregate.targetPercent,
-            achievementPercent: childAggregate.achievementPercent,
-            targetLabel: childAggregate.targetLabel,
-            achievementLabel: childAggregate.achievementLabel,
-            kind: "child",
+        .map(([ikuNum, indicators]) => ({
+            category,
+            ikuNum,
+            indicatorCount: indicators.length,
+            indicatorNames: indicators.map((item) => item.indicator),
+            indicators,
             color: categoryColors[category],
-          });
-        });
+        }));
 
       return {
         category,
@@ -171,7 +176,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         rows,
       };
     });
-  }, [data, year]);
+  }, [data]);
 
   const yearlyTrend = useMemo(
     () =>
@@ -208,6 +213,23 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     .filter((item) => compareAchievement(item, year) === false)
     .slice(0, 5);
 
+  const modalChartData = useMemo(() => {
+    if (!selectedDistribution) return [];
+
+    return selectedDistribution.indicators.map((item) => {
+      const targetRaw = item.targets[year];
+      const realizationRaw = item.achievements?.[year];
+
+      return {
+        indicator: item.indicator,
+        target: toNumericValue(targetRaw),
+        realization: toNumericValue(realizationRaw),
+        targetRaw: formatDisplayValue(targetRaw),
+        realizationRaw: formatDisplayValue(realizationRaw),
+      };
+    });
+  }, [selectedDistribution, year]);
+
   return (
     <div className="space-y-5 lg:space-y-6">
       <header className="glass-surface panel-in rounded-3xl border border-[var(--border)] p-5 sm:p-6">
@@ -243,7 +265,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         <div>
           <h3 className="display-font mb-5 text-lg font-bold text-[var(--ink)]">Distribusi Indikator per Sasaran</h3>
           <p className="text-sm text-[var(--muted)]">
-            Menampilkan ringkasan nilai target dan capaian pada setiap sasaran serta rincian IKU.
+            Menampilkan jumlah indikator pada setiap IKU di masing-masing sasaran.
           </p>
         </div>
 
@@ -254,62 +276,41 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                 <div>
                   <h4 className="display-font text-base font-bold text-[var(--ink)]">{distribution.category}</h4>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
-                    {Math.max(distribution.rows.length - 1, 0)} IKU
+                    {distribution.rows.length} IKU
                   </p>
                 </div>
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-right">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Capaian</p>
-                  <p className="text-sm font-bold" style={{ color: distribution.color }}>{distribution.rows[0]?.achievementLabel ?? "0%"}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Indikator</p>
+                  <p className="text-sm font-bold" style={{ color: distribution.color }}>
+                    {distribution.rows.reduce((total, row) => total + row.indicatorCount, 0)}
+                  </p>
                 </div>
               </div>
 
-              <div style={{ height: Math.max(240, distribution.rows.length * 70 + 88) }}>
+              <div style={{ height: Math.max(220, distribution.rows.length * 58 + 88) }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={distribution.rows} layout="vertical" margin={{ left: 8, right: 28, top: 8, bottom: 10 }} barCategoryGap={10}>
+                  <BarChart data={distribution.rows} layout="vertical" margin={{ left: 8, right: 32, top: 8, bottom: 10 }} barCategoryGap={12}>
                     <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
-                      <Label value="Persentase (%)" position="insideBottom" offset={-6} fill="#5a6c62" fontSize={11} />
+                    <XAxis type="number" allowDecimals={false} domain={[0, (dataMax: number) => Math.max(1, dataMax)]} tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
+                      <Label value="Jumlah Indikator" position="insideBottom" offset={-6} fill="#5a6c62" fontSize={11} />
                     </XAxis>
-                    <YAxis dataKey="label" type="category" width={112} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      cursor={{ fill: "#f2f7f3" }}
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
-                      formatter={(value: unknown, name: unknown) => [`${String(value)}%`, String(name)]}
-                    />
+                    <YAxis dataKey="ikuNum" type="category" width={84} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: "#f2f7f3" }} content={<IndicatorListTooltip />} />
                     <Bar
-                      dataKey="targetPercent"
-                      name="Target"
+                      dataKey="indicatorCount"
+                      name="Jumlah Indikator"
                       radius={[0, 8, 8, 0]}
-                      minPointSize={2}
-                      shape={(props: any) => {
-                        const { x, y, width, height, payload } = props;
-                        const desiredHeight = payload.kind === "parent" ? 20 : 10;
-                        const adjustedY = y + (height - desiredHeight) / 2;
-                        return <rect x={x} y={adjustedY - (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill="#7a8e85" fillOpacity={payload.kind === "parent" ? 0.9 : 0.5} />;
+                      minPointSize={3}
+                      onClick={(entry: any) => {
+                        const payload = entry?.payload as DistributionRow | undefined;
+                        if (payload) setSelectedDistribution(payload);
                       }}
+                      cursor="pointer"
                     >
                       {distribution.rows.map((entry, index) => (
-                        <Cell key={`target-cell-${distribution.category}-${index}`} fill="#7a8e85" fillOpacity={entry.kind === "parent" ? 0.9 : 0.5} />
+                        <Cell key={`indicator-cell-${distribution.category}-${index}`} fill={entry.color} fillOpacity={0.88} />
                       ))}
-                      <LabelList dataKey="targetLabel" position="right" fill="#33473a" fontSize={11} />
-                    </Bar>
-
-                    <Bar
-                      dataKey="achievementPercent"
-                      name="Capaian"
-                      radius={[0, 8, 8, 0]}
-                      minPointSize={2}
-                      shape={(props: any) => {
-                        const { x, y, width, height, payload } = props;
-                        const desiredHeight = payload.kind === "parent" ? 20 : 10;
-                        const adjustedY = y + (height - desiredHeight) / 2;
-                        return <rect x={x} y={adjustedY + (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
-                      }}
-                    >
-                      {distribution.rows.map((entry, index) => (
-                        <Cell key={`achievement-cell-${distribution.category}-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
-                      ))}
-                      <LabelList dataKey="achievementLabel" position="right" fill="#1f352a" fontSize={11} />
+                      <LabelList dataKey="indicatorCount" position="right" fill="#1f352a" fontSize={11} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -377,7 +378,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Capaian</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Realisasi</p>
                     <p className="font-bold text-rose-700">{item.achievements?.[year]}</p>
                   </div>
                   <div className="h-8 w-px bg-[var(--border)]" />
@@ -392,6 +393,62 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           {underperforming.length === 0 && <p className="py-4 text-center text-sm text-[var(--muted)]">Semua indikator yang memiliki data sudah memenuhi target.</p>}
         </div>
       </section>
+
+      {selectedDistribution && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="distribution-detail-title"
+          onClick={() => setSelectedDistribution(null)}
+        >
+          <div className="surface-card max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+              <div>
+                <h3 id="distribution-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
+                  {selectedDistribution.category} - {selectedDistribution.ikuNum}
+                </h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">{selectedDistribution.indicatorCount} indikator</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDistribution(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+                aria-label="Tutup modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92vh-86px)] overflow-auto px-5 py-5 sm:px-6">
+              <div className="min-w-[760px]" style={{ width: Math.max(760, modalChartData.length * 190), height: Math.max(360, modalChartData.length * 28 + 260) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={modalChartData} margin={{ left: 18, right: 24, top: 18, bottom: 98 }}>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
+                    <XAxis
+                      dataKey="indicator"
+                      interval={0}
+                      angle={-24}
+                      textAnchor="end"
+                      height={112}
+                      tick={{ fontSize: 10, fontWeight: 700, fill: "#495a4f" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
+                      <Label value="Jumlah / Persentase" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
+                    </YAxis>
+                    <Tooltip content={<TargetRealizationTooltip />} />
+                    <Legend verticalAlign="top" height={32} />
+                    <Bar dataKey="target" name="Target" fill="#7a8e85" radius={[8, 8, 0, 0]} minPointSize={2} />
+                    <Bar dataKey="realization" name="Realisasi" fill={selectedDistribution.color} radius={[8, 8, 0, 0]} minPointSize={2} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

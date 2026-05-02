@@ -143,7 +143,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
           </div>
           <div>
             <h2 className="display-font text-2xl font-bold text-[var(--ink)]">{category}</h2>
-            <p className="mt-0.5 text-sm text-[var(--muted)]">Detail indikator, target, dan capaian tahun {year}.</p>
+            <p className="mt-0.5 text-sm text-[var(--muted)]">Detail indikator, target, dan realisasi tahun {year}.</p>
           </div>
         </div>
       </header>
@@ -225,7 +225,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                   </button>
                 </th>
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-indigo-700">Target {year}</th>
-                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-emerald-700">Capaian {year}</th>
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-emerald-700">Realisasi {year}</th>
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-[var(--muted)]">
                   <button type="button" onClick={() => handleSort('unit')} className="inline-flex items-center gap-1">
                     Satuan {sortKey === 'unit' && (sortDirection === 'asc' ? <ArrowDownAZ size={13} /> : <ArrowUpAZ size={13} />)}
@@ -325,7 +325,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Capaian</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Realisasi</p>
                   <p className="mt-1 text-xl font-bold text-[var(--ink)]">{achievementValue ?? '-'}</p>
                 </div>
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
