@@ -15,6 +15,7 @@ import {
   KeyRound,
   ShieldCheck,
   TriangleAlert,
+  ScrollText,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -29,10 +30,12 @@ import ForgotPasswordView from "../components/ForgotPasswordView";
 import ResetPasswordView from "../components/ResetPasswordView";
 import MasterYearManagementView from "../components/MasterYearManagementView";
 import ModalShell from "../components/ModalShell";
+import PerformanceContractView from "../components/PerformanceContractView";
 import { ikuApi } from "../services/ikuApi";
 
 type MenuKey =
   | "dashboard"
+  | "kontrak-kinerja"
   | "talenta"
   | "inovasi"
   | "kontribusi"
@@ -56,6 +59,7 @@ interface UserSession {
 
 const PUBLIC_MENUS: MenuKey[] = [
   "dashboard",
+  "kontrak-kinerja",
   "talenta",
   "inovasi",
   "kontribusi",
@@ -69,6 +73,7 @@ const PRIVATE_MENUS: MenuKey[] = ["manajemen-data", "manajemen-user", "master-ta
 
 const menuLabels: Record<MenuKey, string> = {
   dashboard: "Dasbor",
+  "kontrak-kinerja": "Kontrak Kinerja",
   talenta: SasaranProgram.Talenta,
   inovasi: SasaranProgram.Inovasi,
   kontribusi: SasaranProgram.Kontribusi,
@@ -84,6 +89,7 @@ const menuLabels: Record<MenuKey, string> = {
 
 const menuIcons: Partial<Record<MenuKey, React.ElementType>> = {
   dashboard: LayoutDashboard,
+  "kontrak-kinerja": ScrollText,
   talenta: Users,
   inovasi: Lightbulb,
   kontribusi: Globe,
@@ -233,7 +239,7 @@ function DashboardPage() {
     pushUrl("dashboard", { next: null });
   };
 
-  const publicNavMenus: MenuKey[] = ["dashboard", "talenta", "inovasi", "kontribusi", "tata-kelola"];
+  const publicNavMenus: MenuKey[] = ["dashboard", "kontrak-kinerja", "talenta", "inovasi", "kontribusi", "tata-kelola"];
   const privateNavMenus: MenuKey[] = isAuthenticated
     ? [
         "manajemen-data",
@@ -296,6 +302,10 @@ function DashboardPage() {
 
     if (menu === "dashboard") {
       return <DashboardView year={selectedYear as Year} data={ikuData} availableYears={activeYears.map((item) => item.year)} />;
+    }
+
+    if (menu === "kontrak-kinerja") {
+      return <PerformanceContractView year={selectedYear as Year} data={ikuData} />;
     }
 
     if (currentCategory) {
