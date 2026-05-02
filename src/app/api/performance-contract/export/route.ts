@@ -58,7 +58,7 @@ export async function GET(req: Request) {
     const rows = await IkuRecord.findAll({ order: [["createdAt", "ASC"]] });
     const data = rows.map((row) => rowToIkuData(row.get({ plain: true })));
     const contractRows = buildPerformanceContractRows(data, year);
-    const buffer = generatePerformanceContractPdf(contractRows, year);
+    const buffer = generatePerformanceContractPdf(contractRows, year, url.origin);
 
     return new NextResponse(buffer, {
       status: 200,

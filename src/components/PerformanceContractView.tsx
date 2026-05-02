@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 import { Download, FileText } from "lucide-react";
 import { IKUData, Year } from "@/types";
 import { buildPerformanceContractRows } from "@/lib/performanceContract";
+import DocumentPreview from "./DocumentPreview";
 
 interface Props {
   data: IKUData[];
@@ -51,7 +52,7 @@ const PerformanceContractView: React.FC<Props> = ({ data, year }) => {
         </div>
 
         <div className="overflow-x-auto p-4">
-          <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
             <thead>
               <tr className="bg-[var(--surface-2)] text-center text-xs font-bold uppercase tracking-[0.08em] text-[var(--ink)]">
                 <th className="border border-slate-400 px-2 py-2">No</th>
@@ -60,6 +61,7 @@ const PerformanceContractView: React.FC<Props> = ({ data, year }) => {
                 <th className="border border-slate-400 px-3 py-2">Satuan</th>
                 <th className="border border-slate-400 px-3 py-2">Target</th>
                 <th className="border border-slate-400 px-3 py-2">Realisasi</th>
+                <th className="border border-slate-400 px-3 py-2">Dokumen Pendukung</th>
               </tr>
             </thead>
             <tbody>
@@ -84,11 +86,14 @@ const PerformanceContractView: React.FC<Props> = ({ data, year }) => {
                   <td className="border border-slate-400 px-3 py-2 text-center font-semibold">{row.unit}</td>
                   <td className="border border-slate-400 px-3 py-2 text-center font-semibold">{row.target}</td>
                   <td className="border border-slate-400 px-3 py-2 text-center font-semibold">{row.realization}</td>
+                  <td className="border border-slate-400 px-3 py-2 text-center font-semibold">
+                    <DocumentPreview url={row.documentUrl} name={row.documentName} type={row.documentType} emptyLabel="-" />
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="border border-slate-400 px-3 py-8 text-center text-sm text-[var(--muted)]">
+                  <td colSpan={8} className="border border-slate-400 px-3 py-8 text-center text-sm text-[var(--muted)]">
                     Tidak ada indikator untuk tahun {year}.
                   </td>
                 </tr>

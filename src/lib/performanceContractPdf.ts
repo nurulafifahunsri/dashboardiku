@@ -9,10 +9,10 @@ const tableTop = 92;
 const headerHeight = 25;
 const bottomMargin = 34;
 const rowGap = 0;
-const fontSize = 7.2;
-const lineHeight = 8.4;
+const fontSize = 6.5;
+const lineHeight = 7.7;
 
-const colWidths = [27, 78, 45, 232, 48, 55, 55];
+const colWidths = [24, 68, 36, 205, 40, 48, 48, 70];
 const colX = colWidths.reduce<number[]>((acc, width, index) => {
   acc[index + 1] = acc[index] + width;
   return acc;
@@ -23,10 +23,20 @@ interface PdfRow {
   height: number;
   indicatorLines: string[];
   categoryLines: string[];
+  unitLines: string[];
+  targetLines: string[];
+  realizationLines: string[];
+  documentLines: string[];
+  documentLink?: string;
 }
 
 interface PageRow extends PdfRow {
   top: number;
+}
+
+interface PageRender {
+  content: string;
+  annotations: string[];
 }
 
 const cleanText = (value: unknown) =>
@@ -40,36 +50,64 @@ const escapePdf = (value: string) => cleanText(value).replace(/\\/g, "\\\\").rep
 
 const fmt = (value: number) => Number(value.toFixed(2)).toString();
 
-const textWidth = (value: string, size: number) => cleanText(value).length * size * 0.47;
+const textWidth = (value: string, size: number) => cleanText(value).length * size * 0.56;
+
+const splitLongToken = (token: string, width: number, size: number) => {
+  const parts = token.split(/([/\-_])/).filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+
+  parts.forEach((part) => {
+    const next = current ? `${current}${part}` : part;
+    if (textWidth(next, size) <= width) {
+      current = next;
+      return;
+    }
+    if (current) chunks.push(current);
+
+    if (textWidth(part, size) <= width) {
+      current = part;
+      return;
+    }
+
+    current = "";
+    let fragment = "";
+    for (let index = 0; index < part.length; index += 1) {
+      const nextFragment = `${fragment}${part[index]}`;
+      if (textWidth(nextFragment, size) <= width) {
+        fragment = nextFragment;
+      } else {
+        if (fragment) chunks.push(fragment);
+        fragment = part[index];
+      }
+    }
+    if (fragment) chunks.push(fragment);
+  });
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : [token];
+};
 
 const wrapText = (value: unknown, width: number, size = fontSize) => {
   const text = cleanText(value).trim();
   if (!text) return ["-"];
 
-  const maxChars = Math.max(4, Math.floor(width / (size * 0.47)));
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let current = "";
 
   words.forEach((word) => {
-    if (word.length > maxChars) {
-      if (current) {
-        lines.push(current);
-        current = "";
-      }
-      for (let index = 0; index < word.length; index += maxChars) {
-        lines.push(word.slice(index, index + maxChars));
-      }
-      return;
-    }
+    const pieces = textWidth(word, size) > width ? splitLongToken(word, width, size) : [word];
 
-    const next = current ? `${current} ${word}` : word;
-    if (next.length <= maxChars) {
-      current = next;
-    } else {
-      lines.push(current);
-      current = word;
-    }
+    pieces.forEach((piece) => {
+      const next = current ? `${current} ${piece}` : piece;
+      if (textWidth(next, size) <= width) {
+        current = next;
+      } else {
+        if (current) lines.push(current);
+        current = piece;
+      }
+    });
   });
 
   if (current) lines.push(current);
@@ -91,7 +129,7 @@ const pushText = (
   top: number,
   width: number,
   height: number,
-  options: { size?: number; bold?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle" } = {}
+  options: { size?: number; bold?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle"; color?: "blue" | "black" } = {}
 ) => {
   const size = options.size ?? fontSize;
   const align = options.align ?? "left";
@@ -106,7 +144,9 @@ const pushText = (
     if (align === "center") textX = x + Math.max(2, (width - measured) / 2);
     if (align === "right") textX = x + width - measured - 4;
     const textY = pageHeight - (startTop + index * lineHeight);
-    content.push(`BT /${options.bold ? "F2" : "F1"} ${fmt(size)} Tf ${fmt(textX)} ${fmt(textY)} Td (${escapePdf(safeLine)}) Tj ET`);
+    const colorPrefix = options.color === "blue" ? "q 0 0.25 0.8 rg " : "";
+    const colorSuffix = options.color === "blue" ? " Q" : "";
+    content.push(`${colorPrefix}BT /${options.bold ? "F2" : "F1"} ${fmt(size)} Tf ${fmt(textX)} ${fmt(textY)} Td (${escapePdf(safeLine)}) Tj ET${colorSuffix}`);
   });
 };
 
@@ -117,21 +157,41 @@ const pushCell = (
   width: number,
   height: number,
   lines: string[],
-  options: { size?: number; bold?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle"; fill?: boolean } = {}
+  options: { size?: number; bold?: boolean; align?: "left" | "center" | "right"; valign?: "top" | "middle"; fill?: boolean; color?: "blue" | "black" } = {}
 ) => {
   pushRect(content, x, top, width, height, Boolean(options.fill));
   pushText(content, lines, x, top, width, height, options);
 };
 
-const buildPdfRows = (rows: PerformanceContractRow[]): PdfRow[] =>
+const toDocumentLink = (row: PerformanceContractRow, baseUrl: string) => {
+  if (!row.documentUrl) return undefined;
+  try {
+    return new URL(row.documentUrl, baseUrl).toString();
+  } catch {
+    return row.documentUrl;
+  }
+};
+
+const buildPdfRows = (rows: PerformanceContractRow[], baseUrl: string): PdfRow[] =>
   rows.map((row) => {
     const indicatorLines = wrapText(row.indicator, colWidths[3] - 8);
     const categoryLines = wrapText(row.category.toUpperCase(), colWidths[1] - 8, 7);
+    const unitLines = wrapText(row.unit, colWidths[4] - 8);
+    const targetLines = wrapText(row.target, colWidths[5] - 8);
+    const realizationLines = wrapText(row.realization, colWidths[6] - 8);
+    const documentLink = toDocumentLink(row, baseUrl);
+    const documentLines = documentLink ? ["Klik disini"] : ["-"];
+    const maxLines = Math.max(indicatorLines.length, unitLines.length, targetLines.length, realizationLines.length, documentLines.length);
     return {
       row,
       indicatorLines,
       categoryLines,
-      height: Math.max(18, indicatorLines.length * lineHeight + 8),
+      unitLines,
+      targetLines,
+      realizationLines,
+      documentLines,
+      documentLink,
+      height: Math.max(18, maxLines * lineHeight + 8),
     };
   });
 
@@ -168,6 +228,7 @@ const pushHeader = (content: string[], year: Year, pageNumber: number) => {
   pushCell(content, colX[4], tableTop, colWidths[4], headerHeight, ["Satuan"], { bold: true, align: "center", fill: true });
   pushCell(content, colX[5], tableTop, colWidths[5], headerHeight, ["Target"], { bold: true, align: "center", fill: true });
   pushCell(content, colX[6], tableTop, colWidths[6], headerHeight, ["Realisasi"], { bold: true, align: "center", fill: true });
+  pushCell(content, colX[7], tableTop, colWidths[7], headerHeight, ["Dokumen", "Pendukung"], { bold: true, align: "center", fill: true });
 };
 
 const pushMergedGroups = (
@@ -198,22 +259,32 @@ const pushMergedGroups = (
   }
 };
 
-const pushPage = (pageRows: PageRow[], year: Year, pageNumber: number) => {
+const linkAnnotation = (x: number, top: number, width: number, height: number, url: string) => {
+  const y = pageHeight - top - height;
+  return `<< /Type /Annot /Subtype /Link /Rect [${fmt(x)} ${fmt(y)} ${fmt(x + width)} ${fmt(y + height)}] /Border [0 0 0] /A << /S /URI /URI (${escapePdf(url)}) >> >>`;
+};
+
+const pushPage = (pageRows: PageRow[], year: Year, pageNumber: number): PageRender => {
   const content: string[] = ["0.25 w", "0 g"];
+  const annotations: string[] = [];
   pushHeader(content, year, pageNumber);
 
   if (!pageRows.length) {
     pushCell(content, colX[0], tableTop + headerHeight, tableWidth, 38, [`Tidak ada indikator untuk tahun ${year}.`], {
       align: "center",
     });
-    return content.join("\n");
+    return { content: content.join("\n"), annotations };
   }
 
   pageRows.forEach((item) => {
     pushCell(content, colX[3], item.top, colWidths[3], item.height, item.indicatorLines, { bold: false, valign: "top" });
-    pushCell(content, colX[4], item.top, colWidths[4], item.height, wrapText(item.row.unit, colWidths[4] - 8), { align: "center" });
-    pushCell(content, colX[5], item.top, colWidths[5], item.height, wrapText(item.row.target, colWidths[5] - 8), { align: "center" });
-    pushCell(content, colX[6], item.top, colWidths[6], item.height, wrapText(item.row.realization, colWidths[6] - 8), { align: "center" });
+    pushCell(content, colX[4], item.top, colWidths[4], item.height, item.unitLines, { align: "center" });
+    pushCell(content, colX[5], item.top, colWidths[5], item.height, item.targetLines, { align: "center" });
+    pushCell(content, colX[6], item.top, colWidths[6], item.height, item.realizationLines, { align: "center" });
+    pushCell(content, colX[7], item.top, colWidths[7], item.height, item.documentLines, { align: "center", color: item.documentLink ? "blue" : "black" });
+    if (item.documentLink) {
+      annotations.push(linkAnnotation(colX[7], item.top, colWidths[7], item.height, item.documentLink));
+    }
   });
 
   pushMergedGroups(content, pageRows, "category", colX[0], colWidths[0], (groupRows) => [String(groupRows[0].row.categoryNo)], {
@@ -227,10 +298,10 @@ const pushPage = (pageRows: PageRow[], year: Year, pageNumber: number) => {
     bold: true,
   });
 
-  return content.join("\n");
+  return { content: content.join("\n"), annotations };
 };
 
-const buildPdfBuffer = (pageContents: string[]) => {
+const buildPdfBuffer = (pages: PageRender[]) => {
   const objects: string[] = [];
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
   objects.push("");
@@ -238,11 +309,13 @@ const buildPdfBuffer = (pageContents: string[]) => {
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
 
   const pageObjectNumbers: number[] = [];
-  pageContents.forEach((content) => {
+  pages.forEach((page) => {
     const pageObjectNumber = objects.length + 1;
     const contentObjectNumber = pageObjectNumber + 1;
     pageObjectNumbers.push(pageObjectNumber);
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${fmt(pageWidth)} ${fmt(pageHeight)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    const annots = page.annotations.length ? ` /Annots [${page.annotations.join(" ")}]` : "";
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${fmt(pageWidth)} ${fmt(pageHeight)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectNumber} 0 R${annots} >>`);
+    const content = page.content;
     objects.push(`<< /Length ${Buffer.byteLength(content, "utf8")} >>\nstream\n${content}\nendstream`);
   });
 
@@ -274,8 +347,8 @@ const buildPdfBuffer = (pageContents: string[]) => {
   return Buffer.concat(chunks);
 };
 
-export const generatePerformanceContractPdf = (rows: PerformanceContractRow[], year: Year) => {
-  const pdfRows = buildPdfRows(rows);
+export const generatePerformanceContractPdf = (rows: PerformanceContractRow[], year: Year, baseUrl: string) => {
+  const pdfRows = buildPdfRows(rows, baseUrl);
   const pages = paginateRows(pdfRows);
   const pageContents = pages.map((pageRows, index) => pushPage(pageRows, year, index + 1));
   return buildPdfBuffer(pageContents);

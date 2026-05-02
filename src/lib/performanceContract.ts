@@ -16,6 +16,9 @@ export interface PerformanceContractRow {
   unit: string;
   target: string;
   realization: string;
+  documentUrl?: string;
+  documentName?: string;
+  documentType?: string;
   showCategory: boolean;
   categoryRowSpan: number;
   showIku: boolean;
@@ -60,6 +63,9 @@ export const buildPerformanceContractRows = (data: IKUData[], year: Year): Perfo
     unit: item.unit,
     target: formatPerformanceValue(item.targets?.[year]),
     realization: formatPerformanceValue(item.achievements?.[year]),
+    documentUrl: item.documentUrl,
+    documentName: item.documentName,
+    documentType: item.documentType,
     showCategory: false,
     categoryRowSpan: 1,
     showIku: false,
