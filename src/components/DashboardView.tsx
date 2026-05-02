@@ -39,7 +39,6 @@ type DistributionRow = {
   category: SasaranProgram;
   ikuNum: string;
   indicatorCount: number;
-  indicatorNames: string[];
   indicators: IKUData[];
   color: string;
 };
@@ -49,16 +48,50 @@ const formatDisplayValue = (value: unknown) => {
   return String(value);
 };
 
+const hasMetricValue = (value: unknown): boolean => {
+  if (value === undefined || value === null) return false;
+  const normalized = String(value).trim();
+  return normalized !== "" && normalized !== "-";
+};
+
+const toNumericValue = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const normalized = value.replace(/%/g, "").replace(/\s/g, "").trim();
+    const dotCount = (normalized.match(/\./g) || []).length;
+    const cleaned = normalized.includes(",")
+      ? normalized.replace(/\./g, "").replace(",", ".")
+      : dotCount > 1
+        ? normalized.replace(/\./g, "")
+        : normalized;
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+};
+
+const formatMetricValue = (value: unknown, unit?: string) => {
+  const raw = formatDisplayValue(value);
+  if (raw === "-") return raw;
+  if (unit === "%" && !raw.includes("%")) return `${raw}%`;
+  return raw;
+};
+
+const hasYearEntry = (item: IKUData, targetYear: Year) =>
+  item.targets[targetYear] !== undefined || item.achievements?.[targetYear] !== undefined;
+
 const compareAchievement = (item: IKUData, targetYear: Year): boolean | null => {
   const achieved = item.achievements?.[targetYear];
   const target = item.targets[targetYear];
-  if (achieved === undefined || achieved === null || achieved === "") return null;
-  if (target === undefined || target === null || target === "") return null;
+  if (!hasMetricValue(achieved)) return null;
+  if (!hasMetricValue(target)) return null;
 
-  if (typeof achieved === "number" && typeof target === "number") return achieved >= target;
-  if (typeof achieved === "string" && !Number.isNaN(Number(achieved)) && !Number.isNaN(Number(target))) {
-    return Number(achieved) >= Number(target);
-  }
+  const achievedNumber = toNumericValue(achieved);
+  const targetNumber = toNumericValue(target);
+  if (achievedNumber !== null && targetNumber !== null) return achievedNumber >= targetNumber;
+
   if (item.ikuNum === "IKU 11") {
     if (item.indicator.includes("Opini")) return String(achieved).toUpperCase() === "WTP";
     if (item.indicator.includes("SAKIP")) return ["A", "AA"].includes(String(achieved).toUpperCase());
@@ -67,36 +100,27 @@ const compareAchievement = (item: IKUData, targetYear: Year): boolean | null => 
 };
 
 const calculateAchievementRate = (items: IKUData[], targetYear: Year): number => {
-  const scored = items
-    .map((item) => compareAchievement(item, targetYear))
-    .filter((value) => value !== null) as boolean[];
-  if (!scored.length) return 0;
-  const achieved = scored.filter(Boolean).length;
-  return Math.round((achieved / scored.length) * 100);
+  const yearItems = items.filter((item) => hasYearEntry(item, targetYear));
+  if (!yearItems.length) return 0;
+  const achieved = yearItems.filter((item) => compareAchievement(item, targetYear) === true).length;
+  return Math.round((achieved / yearItems.length) * 100);
 };
 
-const toNumericValue = (value: unknown): number | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string") {
-    const cleaned = value.replace(/%/g, "").replace(",", ".").trim();
-    if (!cleaned) return null;
-    const num = Number(cleaned);
-    return Number.isFinite(num) ? num : null;
-  }
-  return null;
-};
-
-const IndicatorListTooltip = ({ active, payload }: any) => {
+const IndicatorListTooltip = ({ active, payload, year }: any) => {
   if (!active || !payload?.length) return null;
-  const indicatorNames = payload[0]?.payload?.indicatorNames as string[] | undefined;
-  if (!indicatorNames?.length) return null;
+  const indicators = payload[0]?.payload?.indicators as IKUData[] | undefined;
+  if (!indicators?.length) return null;
 
   return (
-    <div className="max-w-sm rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink)] shadow-[var(--shadow-soft)]">
-      <div className="space-y-1">
-        {indicatorNames.map((name) => (
-          <p key={name}>{name}</p>
+    <div className="max-w-md rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs text-[var(--ink)] shadow-[var(--shadow-soft)]">
+      <div className="space-y-1.5">
+        {indicators.map((indicator, index) => (
+          <p key={indicator.id} className="font-semibold leading-snug">
+            {index + 1}. {indicator.indicator}{" "}
+            <span className="whitespace-nowrap text-[var(--muted)]">
+              ({formatMetricValue(indicator.achievements?.[year as Year], indicator.unit)}/{formatMetricValue(indicator.targets[year as Year], indicator.unit)})
+            </span>
+          </p>
         ))}
       </div>
     </div>
@@ -124,22 +148,22 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
 
-  const indicatorsWithData = data.filter((item) => compareAchievement(item, year) !== null);
-  const achievedCount = indicatorsWithData.filter((item) => compareAchievement(item, year)).length;
-  const performanceRate = indicatorsWithData.length > 0 ? Math.round((achievedCount / indicatorsWithData.length) * 100) : 0;
+  const yearIndicators = data.filter((item) => hasYearEntry(item, year));
+  const achievedCount = yearIndicators.filter((item) => compareAchievement(item, year) === true).length;
+  const performanceRate = yearIndicators.length > 0 ? Math.round((achievedCount / yearIndicators.length) * 100) : 0;
   const uniqueIkuCount = new Set(data.map((item) => item.ikuNum)).size;
 
   const summary = [
     { title: "Total IKU", value: String(uniqueIkuCount), icon: Trophy, tone: "bg-emerald-100 text-emerald-800" },
     {
       title: `Indikator Tercapai (${year})`,
-      value: indicatorsWithData.length > 0 ? `${achievedCount}/${indicatorsWithData.length}` : "Tidak ada data",
+      value: yearIndicators.length > 0 ? `${achievedCount}/${yearIndicators.length}` : "Tidak ada data",
       icon: CheckCircle2,
-      tone: achievedCount < indicatorsWithData.length / 2 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
+      tone: achievedCount < yearIndicators.length / 2 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
     },
     {
       title: "Tingkat Keberhasilan",
-      value: indicatorsWithData.length > 0 ? `${performanceRate}%` : "N/A",
+      value: yearIndicators.length > 0 ? `${performanceRate}%` : "N/A",
       icon: TrendingUp,
       tone: performanceRate < 50 ? "bg-rose-100 text-rose-700" : "bg-sky-100 text-sky-700",
     },
@@ -162,12 +186,11 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           return aNum - bNum;
         })
         .map(([ikuNum, indicators]) => ({
-            category,
-            ikuNum,
-            indicatorCount: indicators.length,
-            indicatorNames: indicators.map((item) => item.indicator),
-            indicators,
-            color: categoryColors[category],
+          category,
+          ikuNum,
+          indicatorCount: indicators.length,
+          indicators,
+          color: categoryColors[category],
         }));
 
       return {
@@ -183,7 +206,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
       availableYears.map((currentYear) => ({
         label: currentYear,
         rate: calculateAchievementRate(data, currentYear),
-        totalData: data.filter((item) => compareAchievement(item, currentYear) !== null).length,
+        totalData: data.filter((item) => hasYearEntry(item, currentYear)).length,
       })),
     [availableYears, data]
   );
@@ -216,16 +239,16 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const modalChartData = useMemo(() => {
     if (!selectedDistribution) return [];
 
-    return selectedDistribution.indicators.map((item) => {
+    return selectedDistribution.indicators.map((item, index) => {
       const targetRaw = item.targets[year];
       const realizationRaw = item.achievements?.[year];
 
       return {
-        indicator: item.indicator,
+        indicator: `${index + 1}. ${item.indicator}`,
         target: toNumericValue(targetRaw),
         realization: toNumericValue(realizationRaw),
-        targetRaw: formatDisplayValue(targetRaw),
-        realizationRaw: formatDisplayValue(realizationRaw),
+        targetRaw: formatMetricValue(targetRaw, item.unit),
+        realizationRaw: formatMetricValue(realizationRaw, item.unit),
       };
     });
   }, [selectedDistribution, year]);
@@ -238,7 +261,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
             <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Ringkasan Eksekutif</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">Gambaran performa indikator Fasilkom untuk tahun {year}.</p>
           </div>
-          {indicatorsWithData.length > 0 && achievedCount < indicatorsWithData.length && (
+          {yearIndicators.length > 0 && achievedCount < yearIndicators.length && (
             <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rose-700">
               <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" />
               Area kritis perlu tindak lanjut
@@ -295,7 +318,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                       <Label value="Jumlah Indikator" position="insideBottom" offset={-6} fill="#5a6c62" fontSize={11} />
                     </XAxis>
                     <YAxis dataKey="ikuNum" type="category" width={84} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: "#f2f7f3" }} content={<IndicatorListTooltip />} />
+                    <Tooltip cursor={{ fill: "#f2f7f3" }} content={<IndicatorListTooltip year={year} />} />
                     <Bar
                       dataKey="indicatorCount"
                       name="Jumlah Indikator"
@@ -440,8 +463,8 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                     </YAxis>
                     <Tooltip content={<TargetRealizationTooltip />} />
                     <Legend verticalAlign="top" height={32} />
-                    <Bar dataKey="target" name="Target" fill="#7a8e85" radius={[8, 8, 0, 0]} minPointSize={2} />
-                    <Bar dataKey="realization" name="Realisasi" fill={selectedDistribution.color} radius={[8, 8, 0, 0]} minPointSize={2} />
+                    <Bar dataKey="target" name="Target" fill="#ce7b34" radius={[8, 8, 0, 0]} minPointSize={2} />
+                    <Bar dataKey="realization" name="Realisasi" fill="#17624a" radius={[8, 8, 0, 0]} minPointSize={2} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
