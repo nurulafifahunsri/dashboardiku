@@ -27,6 +27,23 @@ type TrendMode = "tahun" | "bulan";
 
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
+const categoryColors: Record<SasaranProgram, string> = {
+  [SasaranProgram.Talenta]: "#17624a",
+  [SasaranProgram.Inovasi]: "#ce7b34",
+  [SasaranProgram.Kontribusi]: "#197a9a",
+  [SasaranProgram.TataKelola]: "#b23b6b",
+};
+
+type DistributionRow = {
+  label: string;
+  targetPercent: number;
+  achievementPercent: number;
+  targetLabel: string;
+  achievementLabel: string;
+  kind: "parent" | "child";
+  color: string;
+};
+
 const compareAchievement = (item: IKUData, targetYear: Year): boolean | null => {
   const achieved = item.achievements?.[targetYear];
   const target = item.targets[targetYear];
@@ -87,13 +104,6 @@ const aggregateTargetAchievement = (items: IKUData[], targetYear: Year) => {
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
 
-  const categoryColors: Record<string, string> = {
-    [SasaranProgram.Talenta]: "#17624a",
-    [SasaranProgram.Inovasi]: "#ce7b34",
-    [SasaranProgram.Kontribusi]: "#197a9a",
-    [SasaranProgram.TataKelola]: "#b23b6b",
-  };
-
   const indicatorsWithData = data.filter((item) => compareAchievement(item, year) !== null);
   const achievedCount = indicatorsWithData.filter((item) => compareAchievement(item, year)).length;
   const performanceRate = indicatorsWithData.length > 0 ? Math.round((achievedCount / indicatorsWithData.length) * 100) : 0;
@@ -116,33 +126,23 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     { title: "Tahun Aktif", value: year, icon: BarChart3, tone: "bg-amber-100 text-amber-700" },
   ];
 
-  const hierarchyDistribution = useMemo(() => {
-    const rows: Array<{
-      label: string;
-      targetPercent: number;
-      achievementPercent: number;
-      targetLabel: string;
-      achievementLabel: string;
-      kind: "parent" | "child";
-      color: string;
-    }> = [];
-
-    Object.values(SasaranProgram).forEach((category) => {
+  const distributionByCategory = useMemo(() => {
+    return Object.values(SasaranProgram).map((category) => {
       const categoryItems = data.filter((item) => item.category === category);
       const parentAggregate = aggregateTargetAchievement(categoryItems, year);
-      rows.push({
-        label: category,
+      const rows: DistributionRow[] = [{
+        label: "Total Sasaran",
         targetPercent: parentAggregate.targetPercent,
         achievementPercent: parentAggregate.achievementPercent,
         targetLabel: parentAggregate.targetLabel,
         achievementLabel: parentAggregate.achievementLabel,
         kind: "parent",
-        color: categoryColors[category] || "#17624a",
-      });
+        color: categoryColors[category],
+      }];
 
       const groupedChild = categoryItems
-        .reduce<Record<string, number>>((acc, item) => {
-          acc[item.ikuNum] = (acc[item.ikuNum] || 0) + 1;
+        .reduce<Record<string, IKUData[]>>((acc, item) => {
+          acc[item.ikuNum] = [...(acc[item.ikuNum] || []), item];
           return acc;
         }, {});
 
@@ -152,22 +152,25 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           const bNum = Number(b[0].replace(/\D/g, ""));
           return aNum - bNum;
         })
-        .forEach(([iku]) => {
-          const childItems = categoryItems.filter((item) => item.ikuNum === iku);
+        .forEach(([iku, childItems]) => {
           const childAggregate = aggregateTargetAchievement(childItems, year);
           rows.push({
-            label: `  └ ${iku}`,
+            label: iku,
             targetPercent: childAggregate.targetPercent,
             achievementPercent: childAggregate.achievementPercent,
             targetLabel: childAggregate.targetLabel,
             achievementLabel: childAggregate.achievementLabel,
             kind: "child",
-            color: categoryColors[category] || "#17624a",
+            color: categoryColors[category],
           });
         });
-    });
 
-    return rows;
+      return {
+        category,
+        color: categoryColors[category],
+        rows,
+      };
+    });
   }, [data, year]);
 
   const yearlyTrend = useMemo(
@@ -236,66 +239,84 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         ))}
       </section>
 
-      <section>
-        <article className="surface-card panel-in rounded-3xl p-5 sm:p-6">
+      <section className="space-y-4">
+        <div>
           <h3 className="display-font mb-5 text-lg font-bold text-[var(--ink)]">Distribusi Indikator per Sasaran</h3>
-          <p className="mb-4 text-sm text-[var(--muted)]">
+          <p className="text-sm text-[var(--muted)]">
             Menampilkan ringkasan nilai target dan capaian pada setiap sasaran serta rincian IKU.
           </p>
-          <div className="h-[640px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hierarchyDistribution} layout="vertical" margin={{ left: 24, right: 22, top: 8, bottom: 8 }} barCategoryGap={8}>
-                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
-                  <Label value="Persentase (%)" position="insideBottom" offset={-2} fill="#5a6c62" fontSize={12} />
-                </XAxis>
-                <YAxis dataKey="label" type="category" width={180} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false}>
-                  <Label value="Indikator" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
-                </YAxis>
-                <Tooltip
-                  cursor={{ fill: "#f2f7f3" }}
-                  contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
-                  formatter={(value: unknown, name: unknown) => [`${String(value)}%`, String(name)]}
-                />
-                <Bar
-                  dataKey="targetPercent"
-                  name="Target"
-                  radius={[0, 8, 8, 0]}
-                  minPointSize={2}
-                  shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    const desiredHeight = payload.kind === "parent" ? 20 : 10;
-                    const adjustedY = y + (height - desiredHeight) / 2;
-                    return <rect x={x} y={adjustedY - (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill="#7a8e85" fillOpacity={payload.kind === "parent" ? 0.9 : 0.5} />;
-                  }}
-                >
-                  {hierarchyDistribution.map((entry, index) => (
-                    <Cell key={`target-cell-${index}`} fill="#7a8e85" fillOpacity={entry.kind === "parent" ? 0.9 : 0.5} />
-                  ))}
-                  <LabelList dataKey="targetLabel" position="right" fill="#33473a" fontSize={11} />
-                </Bar>
+        </div>
 
-                <Bar
-                  dataKey="achievementPercent"
-                  name="Capaian"
-                  radius={[0, 8, 8, 0]}
-                  minPointSize={2}
-                  shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    const desiredHeight = payload.kind === "parent" ? 20 : 10;
-                    const adjustedY = y + (height - desiredHeight) / 2;
-                    return <rect x={x} y={adjustedY + (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
-                  }}
-                >
-                  {hierarchyDistribution.map((entry, index) => (
-                    <Cell key={`achievement-cell-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
-                  ))}
-                  <LabelList dataKey="achievementLabel" position="right" fill="#1f352a" fontSize={11} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </article>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {distributionByCategory.map((distribution) => (
+            <article key={distribution.category} className="surface-card panel-in rounded-3xl p-5 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h4 className="display-font text-base font-bold text-[var(--ink)]">{distribution.category}</h4>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                    {Math.max(distribution.rows.length - 1, 0)} IKU
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Capaian</p>
+                  <p className="text-sm font-bold" style={{ color: distribution.color }}>{distribution.rows[0]?.achievementLabel ?? "0%"}</p>
+                </div>
+              </div>
+
+              <div style={{ height: Math.max(240, distribution.rows.length * 70 + 88) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={distribution.rows} layout="vertical" margin={{ left: 8, right: 28, top: 8, bottom: 10 }} barCategoryGap={10}>
+                    <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#dbe8de" />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
+                      <Label value="Persentase (%)" position="insideBottom" offset={-6} fill="#5a6c62" fontSize={11} />
+                    </XAxis>
+                    <YAxis dataKey="label" type="category" width={112} tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill: "#f2f7f3" }}
+                      contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }}
+                      formatter={(value: unknown, name: unknown) => [`${String(value)}%`, String(name)]}
+                    />
+                    <Bar
+                      dataKey="targetPercent"
+                      name="Target"
+                      radius={[0, 8, 8, 0]}
+                      minPointSize={2}
+                      shape={(props: any) => {
+                        const { x, y, width, height, payload } = props;
+                        const desiredHeight = payload.kind === "parent" ? 20 : 10;
+                        const adjustedY = y + (height - desiredHeight) / 2;
+                        return <rect x={x} y={adjustedY - (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill="#7a8e85" fillOpacity={payload.kind === "parent" ? 0.9 : 0.5} />;
+                      }}
+                    >
+                      {distribution.rows.map((entry, index) => (
+                        <Cell key={`target-cell-${distribution.category}-${index}`} fill="#7a8e85" fillOpacity={entry.kind === "parent" ? 0.9 : 0.5} />
+                      ))}
+                      <LabelList dataKey="targetLabel" position="right" fill="#33473a" fontSize={11} />
+                    </Bar>
+
+                    <Bar
+                      dataKey="achievementPercent"
+                      name="Capaian"
+                      radius={[0, 8, 8, 0]}
+                      minPointSize={2}
+                      shape={(props: any) => {
+                        const { x, y, width, height, payload } = props;
+                        const desiredHeight = payload.kind === "parent" ? 20 : 10;
+                        const adjustedY = y + (height - desiredHeight) / 2;
+                        return <rect x={x} y={adjustedY + (payload.kind === "parent" ? 5 : 3)} width={width} height={desiredHeight} rx={8} ry={8} fill={payload.color} fillOpacity={payload.kind === "parent" ? 1 : 0.55} />;
+                      }}
+                    >
+                      {distribution.rows.map((entry, index) => (
+                        <Cell key={`achievement-cell-${distribution.category}-${index}`} fill={entry.color} fillOpacity={entry.kind === "parent" ? 1 : 0.55} />
+                      ))}
+                      <LabelList dataKey="achievementLabel" position="right" fill="#1f352a" fontSize={11} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="surface-card panel-in rounded-3xl p-5 sm:p-6">
