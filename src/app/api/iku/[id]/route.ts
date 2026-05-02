@@ -32,6 +32,9 @@ const rowToIkuData = (row: any) => {
         unit: row.unit,
         targets,
         achievements,
+        documentUrl: normalizeCell(row.documentUrl),
+        documentName: normalizeCell(row.documentName),
+        documentType: normalizeCell(row.documentType),
     };
 };
 
@@ -42,6 +45,9 @@ const ikuDataToDb = (payload: any) => {
         ikuNum: payload.ikuNum,
         indicator: payload.indicator,
         unit: payload.unit,
+        documentUrl: normalizeCell(payload.documentUrl) || null,
+        documentName: normalizeCell(payload.documentName) || null,
+        documentType: normalizeCell(payload.documentType) || null,
     };
 
     years.forEach((year) => {

@@ -2,7 +2,8 @@
 import React, { useMemo, useState } from "react";
 import { IKUData, MasterYear, SasaranProgram, Year } from "../types";
 import { ikuApi } from "../services/ikuApi";
-import { ArrowDownAZ, ArrowUpAZ, Search } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Search, UploadCloud, X } from "lucide-react";
+import DocumentPreview from "./DocumentPreview";
 
 interface Props {
   data: IKUData[];
@@ -12,6 +13,10 @@ interface Props {
 
 type SortKey = "ikuNum" | "category" | "indicator" | "unit";
 type SortDirection = "asc" | "desc";
+type FormErrors = Record<string, string>;
+
+const maxDocumentSize = 10 * 1024 * 1024;
+const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 const emptyForm = (): IKUData => ({
   id: "",
@@ -35,6 +40,9 @@ const emptyForm = (): IKUData => ({
     "2029": "",
     "2030": "",
   },
+  documentUrl: "",
+  documentName: "",
+  documentType: "",
 });
 
 const toComparableValue = (value: unknown) => String(value || "").toLowerCase();
@@ -56,6 +64,10 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState("");
+  const [documentInputKey, setDocumentInputKey] = useState(0);
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("semua");
@@ -113,6 +125,11 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
 
   const updateFormField = (field: keyof IKUData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next[field as string];
+      return next;
+    });
   };
 
   const updateYearField = (kind: "targets" | "achievements", year: Year, value: string) => {
@@ -123,11 +140,65 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
         [year]: value,
       },
     }));
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next[`${kind}.${year}`];
+      return next;
+    });
+  };
+
+  const fieldClass = (key: string, base: string) =>
+    `${base} ${formErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-2 focus:ring-rose-100" : ""}`;
+
+  const fieldError = (key: string) =>
+    formErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{formErrors[key]}</p> : null;
+
+  const validateForm = (payload: IKUData, file: File | null) => {
+    const errors: FormErrors = {};
+    if (!payload.category?.trim()) errors.category = "Kategori wajib dipilih.";
+    if (!payload.ikuNum?.trim()) errors.ikuNum = "IKU wajib diisi.";
+    if (!payload.indicator?.trim()) errors.indicator = "Indikator wajib diisi.";
+    if (!payload.unit?.trim()) errors.unit = "Satuan wajib diisi.";
+
+    availableYears.forEach((year) => {
+      const target = String(payload.targets?.[year] ?? "");
+      const realization = String(payload.achievements?.[year] ?? "");
+      if (target.length > 64) errors[`targets.${year}`] = "Target maksimal 64 karakter.";
+      if (realization.length > 64) errors[`achievements.${year}`] = "Realisasi maksimal 64 karakter.";
+    });
+
+    if (file) {
+      if (!allowedDocumentTypes.has(file.type)) errors.document = "Dokumen harus berupa PDF atau gambar.";
+      if (file.size > maxDocumentSize) errors.document = "Ukuran dokumen maksimal 10MB.";
+    }
+
+    return errors;
+  };
+
+  const handleDocumentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    if (documentPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(documentPreviewUrl);
+    setDocumentFile(file);
+    setDocumentPreviewUrl(file ? URL.createObjectURL(file) : "");
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next.document;
+      return next;
+    });
+  };
+
+  const clearSelectedDocument = () => {
+    if (documentPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(documentPreviewUrl);
+    setDocumentFile(null);
+    setDocumentPreviewUrl("");
+    setDocumentInputKey((prev) => prev + 1);
   };
 
   const resetState = () => {
+    clearSelectedDocument();
     setForm(emptyForm());
     setIsEditing(false);
+    setFormErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,13 +206,22 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
     setError("");
     setMessage("");
 
+    const validationErrors = validateForm(form, documentFile);
+    if (Object.keys(validationErrors).length) {
+      setFormErrors(validationErrors);
+      return;
+    }
+
     try {
       setLoading(true);
+      const uploadedDocument = documentFile ? await ikuApi.uploadDocument(documentFile) : {};
+      const payload = { ...form, ...uploadedDocument };
+
       if (isEditing && form.id) {
-        await ikuApi.update(form.id, form);
+        await ikuApi.update(form.id, payload);
         setMessage("Data berhasil diperbarui.");
       } else {
-        await ikuApi.create(form);
+        await ikuApi.create(payload);
         setMessage("Data berhasil ditambahkan.");
       }
       resetState();
@@ -156,6 +236,8 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
   const startEdit = (item: IKUData) => {
     setError("");
     setMessage("");
+    clearSelectedDocument();
+    setFormErrors({});
     setForm({
       ...item,
       targets: { ...emptyForm().targets, ...item.targets },
@@ -243,34 +325,58 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
         {message && <p className="mb-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700">{message}</p>}
         {error && <p className="mb-4 rounded-lg bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+        <form onSubmit={handleSubmit} noValidate className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Kategori</span>
-              <select value={form.category} onChange={(e) => updateFormField("category", e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5">
+              <select
+                value={form.category}
+                onChange={(e) => updateFormField("category", e.target.value)}
+                aria-invalid={Boolean(formErrors.category)}
+                className={fieldClass("category", "w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5")}
+              >
                 {Object.values(SasaranProgram).map((item) => (
                   <option key={item} value={item}>
                     {item}
                   </option>
                 ))}
               </select>
+              {fieldError("category")}
             </label>
 
             <label className="text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">IKU</span>
-              <input value={form.ikuNum} onChange={(e) => updateFormField("ikuNum", e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input
+                value={form.ikuNum}
+                onChange={(e) => updateFormField("ikuNum", e.target.value)}
+                aria-invalid={Boolean(formErrors.ikuNum)}
+                className={fieldClass("ikuNum", "w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5")}
+              />
+              {fieldError("ikuNum")}
             </label>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm md:col-span-2">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Indikator</span>
-              <input value={form.indicator} onChange={(e) => updateFormField("indicator", e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input
+                value={form.indicator}
+                onChange={(e) => updateFormField("indicator", e.target.value)}
+                aria-invalid={Boolean(formErrors.indicator)}
+                className={fieldClass("indicator", "w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5")}
+              />
+              {fieldError("indicator")}
             </label>
 
             <label className="text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Satuan</span>
-              <input value={form.unit} onChange={(e) => updateFormField("unit", e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input
+                value={form.unit}
+                onChange={(e) => updateFormField("unit", e.target.value)}
+                aria-invalid={Boolean(formErrors.unit)}
+                className={fieldClass("unit", "w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5")}
+              />
+              {fieldError("unit")}
             </label>
           </div>
 
@@ -284,8 +390,10 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                     <input
                       value={String(form.targets[year as Year] ?? "")}
                       onChange={(e) => updateYearField("targets", year as Year, e.target.value)}
-                      className="w-full rounded-md border border-[var(--border)] px-2.5 py-2"
+                      aria-invalid={Boolean(formErrors[`targets.${year}`])}
+                      className={fieldClass(`targets.${year}`, "w-full rounded-md border border-[var(--border)] px-2.5 py-2")}
                     />
+                    {fieldError(`targets.${year}`)}
                   </label>
                 ))}
               </div>
@@ -300,12 +408,47 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                     <input
                       value={String(form.achievements?.[year as Year] ?? "")}
                       onChange={(e) => updateYearField("achievements", year as Year, e.target.value)}
-                      className="w-full rounded-md border border-[var(--border)] px-2.5 py-2"
+                      aria-invalid={Boolean(formErrors[`achievements.${year}`])}
+                      className={fieldClass(`achievements.${year}`, "w-full rounded-md border border-[var(--border)] px-2.5 py-2")}
                     />
+                    {fieldError(`achievements.${year}`)}
                   </label>
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-white p-3 sm:p-4">
+            <p className="mb-3 text-sm font-bold text-[var(--ink)]">Dokumen Pendukung</p>
+            <label className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center ${formErrors.document ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-[var(--surface-2)]"}`}>
+              <UploadCloud size={24} className="mb-2 text-emerald-700" />
+              <span className="text-sm font-semibold text-[var(--ink)]">Unggah PDF atau gambar</span>
+              <span className="mt-1 text-xs text-[var(--muted)]">Maksimal 10MB</span>
+              <input
+                key={documentInputKey}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/gif,image/webp"
+                className="hidden"
+                onChange={handleDocumentChange}
+                aria-invalid={Boolean(formErrors.document)}
+              />
+            </label>
+            {fieldError("document")}
+            {(documentPreviewUrl || form.documentUrl) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <DocumentPreview
+                  url={documentPreviewUrl || form.documentUrl}
+                  name={documentFile?.name || form.documentName}
+                  type={documentFile?.type || form.documentType}
+                />
+                {documentFile && (
+                  <button type="button" onClick={clearSelectedDocument} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
+                    <X size={13} />
+                    Batalkan file
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -368,7 +511,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
               }}
               className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
             >
-              <option value="semua">Semua IKU</option>
+              <option value="semua">Semua</option>
               {ikuOptions.map((iku) => (
                 <option key={iku} value={iku}>
                   {iku}
@@ -400,7 +543,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
         </p>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[1080px] text-left">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                 <th className="px-3 py-2 text-xs">
@@ -425,6 +568,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                 </th>
                 <th className="px-3 py-2 text-xs">Target {currentYear}</th>
                 <th className="px-3 py-2 text-xs">Realisasi {currentYear}</th>
+                <th className="px-3 py-2 text-xs">Dokumen</th>
                 <th className="px-3 py-2 text-xs">Aksi</th>
               </tr>
             </thead>
@@ -437,6 +581,9 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                   <td className="px-3 py-2 text-sm">{item.unit}</td>
                   <td className="px-3 py-2 text-sm">{item.targets[currentYear] ?? "-"}</td>
                   <td className="px-3 py-2 text-sm">{item.achievements?.[currentYear] ?? "-"}</td>
+                  <td className="px-3 py-2 text-sm">
+                    <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} emptyLabel="-" />
+                  </td>
                   <td className="px-3 py-2 text-sm">
                     <div className="flex gap-2">
                       <button type="button" onClick={() => startEdit(item)} className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-semibold">
@@ -451,7 +598,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
               ))}
               {pagedRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-[var(--muted)]">
+                  <td colSpan={8} className="px-3 py-6 text-center text-sm text-[var(--muted)]">
                     Tidak ada data sesuai filter.
                   </td>
                 </tr>

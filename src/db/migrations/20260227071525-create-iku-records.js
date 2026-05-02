@@ -36,6 +36,9 @@ module.exports = {
       achievement2028: { type: Sequelize.STRING(64), allowNull: true },
       achievement2029: { type: Sequelize.STRING(64), allowNull: true },
       achievement2030: { type: Sequelize.STRING(64), allowNull: true },
+      documentUrl: { type: Sequelize.STRING(512), allowNull: true },
+      documentName: { type: Sequelize.STRING(255), allowNull: true },
+      documentType: { type: Sequelize.STRING(128), allowNull: true },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

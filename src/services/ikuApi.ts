@@ -57,6 +57,18 @@ export const ikuApi = {
     return handleResponse<{ message: string; imported: number }>(res);
   },
 
+  async uploadDocument(file: File): Promise<Pick<IKUData, 'documentUrl' | 'documentName' | 'documentType'>> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_BASE}/documents`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    return handleResponse<Pick<IKUData, 'documentUrl' | 'documentName' | 'documentType'>>(res);
+  },
+
   exportExcel(): void {
     window.open(`${API_BASE}/export`, '_blank');
   },

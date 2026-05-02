@@ -33,6 +33,9 @@ const rowToIkuData = (row: any) => {
         unit: row.unit,
         targets,
         achievements,
+        documentUrl: normalizeCell(row.documentUrl),
+        documentName: normalizeCell(row.documentName),
+        documentType: normalizeCell(row.documentType),
     };
 };
 
@@ -43,6 +46,9 @@ const excelRowsFromIku = (data: any[]) => {
         ikuNum: item.ikuNum,
         indicator: item.indicator,
         unit: item.unit,
+        documentUrl: item.documentUrl ?? '',
+        documentName: item.documentName ?? '',
+        documentType: item.documentType ?? '',
         target_2025: item.targets?.['2025'] ?? '',
         target_2026: item.targets?.['2026'] ?? '',
         target_2027: item.targets?.['2027'] ?? '',

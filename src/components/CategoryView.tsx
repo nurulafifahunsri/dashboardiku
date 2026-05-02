@@ -13,8 +13,11 @@ import {
   Scale,
   Search,
   ArrowDownAZ,
-  ArrowUpAZ
+  ArrowUpAZ,
+  LayoutGrid,
+  Table2
 } from 'lucide-react';
+import DocumentPreview from './DocumentPreview';
 
 interface Props {
   category: SasaranProgram;
@@ -22,11 +25,14 @@ interface Props {
   year: Year;
 }
 
+type ViewMode = 'table' | 'grid';
+
 const CategoryView: React.FC<Props> = ({ category, data, year }) => {
   const [search, setSearch] = useState('');
   const [ikuFilter, setIkuFilter] = useState('semua');
   const [sortKey, setSortKey] = useState<'ikuNum' | 'indicator' | 'unit'>('ikuNum');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -179,7 +185,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                 }}
                 className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
               >
-                <option value="semua">Semua IKU</option>
+                <option value="semua">Semua</option>
                 {ikuOptions.map((iku) => (
                   <option key={iku} value={iku}>
                     {iku}
@@ -193,25 +199,49 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
             <p className="text-sm text-[var(--muted)]">
               Menampilkan <strong>{totalRows === 0 ? 0 : startIndex + 1}</strong>-<strong>{endIndex}</strong> dari <strong>{totalRows}</strong> data.
             </p>
-            <label className="text-sm">
-              <span className="mr-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Data/Halaman</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border border-[var(--border)] bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold ${viewMode === 'table' ? 'bg-[var(--primary)] text-white' : 'text-[var(--ink)]'}`}
+                >
+                  <Table2 size={14} />
+                  Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold ${viewMode === 'grid' ? 'bg-[var(--primary)] text-white' : 'text-[var(--ink)]'}`}
+                >
+                  <LayoutGrid size={14} />
+                  Grid
+                </button>
+              </div>
+              {viewMode === 'table' && (
+                <label className="text-sm">
+                  <span className="mr-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Data/Halaman</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
         </div>
+        {viewMode === 'table' && (
+          <>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                 <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-[var(--muted)]">
@@ -231,6 +261,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                     Satuan {sortKey === 'unit' && (sortDirection === 'asc' ? <ArrowDownAZ size={13} /> : <ArrowUpAZ size={13} />)}
                   </button>
                 </th>
+                <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.13em] text-[var(--muted)]">Dokumen</th>
                 <th className="px-5 py-4 text-center text-xs font-semibold uppercase tracking-[0.13em] text-[var(--muted)]">Status</th>
               </tr>
             </thead>
@@ -253,6 +284,9 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                     <td className="px-5 py-4 align-top text-sm font-bold text-emerald-700">{formatValue(achievementValue)}</td>
                     <td className="px-5 py-4 align-top text-sm text-[var(--ink)]">{item.unit}</td>
                     <td className="px-5 py-4 align-top">
+                      <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} emptyLabel="-" />
+                    </td>
+                    <td className="px-5 py-4 align-top">
                       <div className="flex justify-center">
                         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${info.color}`}>
                           {info.icon}
@@ -265,7 +299,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
               })}
               {pagedRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-6 text-center text-sm text-[var(--muted)]">
+                  <td colSpan={7} className="px-5 py-6 text-center text-sm text-[var(--muted)]">
                     Tidak ada data sesuai pencarian/filter.
                   </td>
                 </tr>
@@ -296,17 +330,20 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
             </button>
           </div>
         </div>
+          </>
+        )}
       </section>
 
+      {viewMode === 'grid' && (
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {sortedRows.slice(0, 4).map((item, idx) => {
+        {sortedRows.map((item, idx) => {
           const targetValue = item.targets[year];
           const achievementValue = item.achievements ? item.achievements[year] : undefined;
           const info = getStatusInfo(achievementValue, targetValue);
           const percentage =
             achievementValue !== undefined &&
-            !isNaN(parseFloat(achievementValue as string)) &&
-            !isNaN(parseFloat(targetValue as string))
+              !isNaN(parseFloat(achievementValue as string)) &&
+              !isNaN(parseFloat(targetValue as string))
               ? Math.min(100, (parseFloat(achievementValue as string) / parseFloat(targetValue as string)) * 100)
               : 0;
 
@@ -334,6 +371,11 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                 </div>
               </div>
 
+              <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Dokumen</p>
+                <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} />
+              </div>
+
               <div className="mt-4">
                 <div className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.11em] text-[var(--muted)]">
                   <span>Progres</span>
@@ -353,7 +395,13 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
             </article>
           );
         })}
+        {sortedRows.length === 0 && (
+          <div className="surface-card rounded-2xl p-6 text-center text-sm text-[var(--muted)] lg:col-span-2">
+            Tidak ada data sesuai pencarian/filter.
+          </div>
+        )}
       </section>
+      )}
     </div>
   );
 };

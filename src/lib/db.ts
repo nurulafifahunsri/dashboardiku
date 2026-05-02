@@ -33,6 +33,9 @@ export interface IkuRecordAttributes {
     achievement2028?: string;
     achievement2029?: string;
     achievement2030?: string;
+    documentUrl?: string;
+    documentName?: string;
+    documentType?: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -80,6 +83,9 @@ export const IkuRecord = sequelize.define<Model<IkuRecordAttributes>>(
         achievement2028: { type: DataTypes.STRING(64), allowNull: true },
         achievement2029: { type: DataTypes.STRING(64), allowNull: true },
         achievement2030: { type: DataTypes.STRING(64), allowNull: true },
+        documentUrl: { type: DataTypes.STRING(512), allowNull: true },
+        documentName: { type: DataTypes.STRING(255), allowNull: true },
+        documentType: { type: DataTypes.STRING(128), allowNull: true },
     },
     {
         tableName: 'iku_records',

@@ -8,8 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
   Cell,
   LabelList,
   Label,
@@ -24,10 +22,6 @@ interface Props {
   availableYears: Year[];
 }
 
-type TrendMode = "tahun" | "bulan";
-
-const monthLabels = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
 const categoryColors: Record<SasaranProgram, string> = {
   [SasaranProgram.Talenta]: "#17624a",
   [SasaranProgram.Inovasi]: "#ce7b34",
@@ -41,6 +35,13 @@ type DistributionRow = {
   indicatorCount: number;
   indicators: IKUData[];
   color: string;
+};
+
+type CategoryTrendDetail = {
+  category: SasaranProgram;
+  achieved: number;
+  total: number;
+  score: number;
 };
 
 const formatDisplayValue = (value: unknown) => {
@@ -144,8 +145,28 @@ const TargetRealizationTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const WeightedTrendTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const details = payload[0]?.payload?.details as CategoryTrendDetail[] | undefined;
+  const totalScore = payload[0]?.payload?.totalScore ?? 0;
+  if (!details?.length) return null;
+
+  return (
+    <div className="max-w-sm rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs text-[var(--ink)] shadow-[var(--shadow-soft)]">
+      <p className="mb-2 font-bold">Tahun {label}: {totalScore}%</p>
+      <div className="space-y-1.5">
+        {details.map((item) => (
+          <div key={item.category} className="flex items-center justify-between gap-4">
+            <span className="font-semibold">{item.category}</span>
+            <span className="whitespace-nowrap text-[var(--muted)]">{item.achieved}/{item.total} indikator, {item.score}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
-  const [trendMode, setTrendMode] = useState<TrendMode>("tahun");
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
 
   const yearIndicators = data.filter((item) => hasYearEntry(item, year));
@@ -201,40 +222,34 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     });
   }, [data]);
 
-  const yearlyTrend = useMemo(
+  const weightedTrend = useMemo(
     () =>
-      availableYears.map((currentYear) => ({
-        label: currentYear,
-        rate: calculateAchievementRate(data, currentYear),
-        totalData: data.filter((item) => hasYearEntry(item, currentYear)).length,
-      })),
+      availableYears.map((currentYear) => {
+        const details = Object.values(SasaranProgram).map((category) => {
+          const categoryItems = data.filter((item) => item.category === category && hasYearEntry(item, currentYear));
+          const achieved = categoryItems.filter((item) => compareAchievement(item, currentYear) === true).length;
+          const score = categoryItems.length ? Number(((achieved / categoryItems.length) * 25).toFixed(1)) : 0;
+          return {
+            category,
+            achieved,
+            total: categoryItems.length,
+            score,
+          };
+        });
+        const totalScore = Number(details.reduce((sum, item) => sum + item.score, 0).toFixed(1));
+
+        return {
+          label: currentYear,
+          totalScore,
+          details,
+          [SasaranProgram.Talenta]: details.find((item) => item.category === SasaranProgram.Talenta)?.score ?? 0,
+          [SasaranProgram.Inovasi]: details.find((item) => item.category === SasaranProgram.Inovasi)?.score ?? 0,
+          [SasaranProgram.Kontribusi]: details.find((item) => item.category === SasaranProgram.Kontribusi)?.score ?? 0,
+          [SasaranProgram.TataKelola]: details.find((item) => item.category === SasaranProgram.TataKelola)?.score ?? 0,
+        };
+      }),
     [availableYears, data]
   );
-
-  const monthlyTrend = useMemo(() => {
-    const annualRate = calculateAchievementRate(data, year);
-    return monthLabels.map((label, monthIndex) => {
-      const monthlyItems = data.filter((item) => {
-        if (!item.updatedAt) return false;
-        const date = new Date(item.updatedAt);
-        return !Number.isNaN(date.getTime()) && String(date.getFullYear()) === year && date.getMonth() <= monthIndex;
-      });
-
-      const fallbackRate = Math.round(((monthIndex + 1) / 12) * annualRate);
-      const computedRate = monthlyItems.length ? calculateAchievementRate(monthlyItems, year) : fallbackRate;
-      return {
-        label,
-        rate: computedRate,
-        totalData: monthlyItems.length,
-      };
-    });
-  }, [data, year]);
-
-  const activeTrend = trendMode === "tahun" ? yearlyTrend : monthlyTrend;
-
-  const underperforming = data
-    .filter((item) => compareAchievement(item, year) === false)
-    .slice(0, 5);
 
   const modalChartData = useMemo(() => {
     if (!selectedDistribution) return [];
@@ -258,15 +273,9 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
       <header className="glass-surface panel-in rounded-3xl border border-[var(--border)] p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Ringkasan Eksekutif</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">Gambaran performa indikator Fasilkom untuk tahun {year}.</p>
+            <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Dasbor</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Performa indikator per tahun {year}.</p>
           </div>
-          {yearIndicators.length > 0 && achievedCount < yearIndicators.length && (
-            <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rose-700">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" />
-              Area kritis perlu tindak lanjut
-            </div>
-          )}
         </div>
       </header>
 
@@ -344,76 +353,37 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
       </section>
 
       <section className="surface-card panel-in rounded-3xl p-5 sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-5">
           <h3 className="display-font text-lg font-bold text-[var(--ink)]">Tren Tingkat Keberhasilan (%)</h3>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setTrendMode("tahun")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${trendMode === "tahun" ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-white text-[var(--ink)]"}`}
-            >
-              Per Tahun
-            </button>
-            <button
-              type="button"
-              onClick={() => setTrendMode("bulan")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${trendMode === "bulan" ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-white text-[var(--ink)]"}`}
-            >
-              Per Bulan ({year})
-            </button>
-          </div>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Setiap sasaran bernilai maksimal 25%. Total 100% tercapai jika Talenta, Inovasi, Kontribusi Keilmuan, dan Tata Kelola Institusi seluruhnya memenuhi target.
+          </p>
         </div>
 
         <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={activeTrend}>
-              <defs>
-                <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ce7b34" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="#ce7b34" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <BarChart data={weightedTrend} margin={{ left: 8, right: 24, top: 12, bottom: 8 }}>
               <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
               <XAxis dataKey="label" tick={{ fontSize: 12, fontWeight: 700, fill: "#495a4f" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#63756b" }} axisLine={false} tickLine={false} domain={[0, 100]} />
-              <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #dbe8de", boxShadow: "var(--shadow-soft)" }} />
-              <Area type="monotone" dataKey="rate" name="Keberhasilan (%)" stroke="#ce7b34" strokeWidth={3} fillOpacity={1} fill="url(#rateGradient)" />
-            </AreaChart>
+              <YAxis tick={{ fontSize: 12, fill: "#63756b" }} axisLine={false} tickLine={false} domain={[0, 100]}>
+                <Label value="Skor (%)" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
+              </YAxis>
+              <Tooltip content={<WeightedTrendTooltip />} />
+              <Legend verticalAlign="top" height={32} />
+              {Object.values(SasaranProgram).map((category, index, categories) => (
+                <Bar
+                  key={category}
+                  dataKey={category}
+                  name={category}
+                  stackId="year"
+                  fill={categoryColors[category]}
+                  radius={index === categories.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {index === categories.length - 1 && <LabelList dataKey="totalScore" position="top" fill="#1f352a" fontSize={12} fontWeight={700} />}
+                </Bar>
+              ))}
+            </BarChart>
           </ResponsiveContainer>
-        </div>
-        {trendMode === "bulan" && (
-          <p className="mt-2 text-xs text-[var(--muted)]">Mode bulanan menampilkan 12 bulan penuh dari Januari sampai Desember untuk tahun {year}.</p>
-        )}
-      </section>
-
-      <section className="surface-card panel-in rounded-3xl p-5 sm:p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <AlertCircle size={18} className="text-rose-600" />
-          <h3 className="display-font text-lg font-bold text-[var(--ink)]">Indikator Perlu Perhatian ({year})</h3>
-        </div>
-        <div className="space-y-3">
-          {underperforming.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-emerald-700">{item.ikuNum}</p>
-                  <p className="truncate text-sm font-semibold text-[var(--ink)]">{item.indicator}</p>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Realisasi</p>
-                    <p className="font-bold text-rose-700">{item.achievements?.[year]}</p>
-                  </div>
-                  <div className="h-8 w-px bg-[var(--border)]" />
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Target</p>
-                    <p className="font-bold text-[var(--ink)]">{item.targets[year]}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          {underperforming.length === 0 && <p className="py-4 text-center text-sm text-[var(--muted)]">Semua indikator yang memiliki data sudah memenuhi target.</p>}
         </div>
       </section>
 

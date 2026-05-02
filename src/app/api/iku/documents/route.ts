@@ -1,0 +1,60 @@
+import { NextResponse } from 'next/server';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { verifySession } from '@/lib/auth';
+
+export const runtime = 'nodejs';
+
+const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const maxFileSize = 10 * 1024 * 1024;
+
+const extensionFromType = (type: string) => {
+  if (type === 'application/pdf') return '.pdf';
+  if (type === 'image/jpeg') return '.jpg';
+  if (type === 'image/png') return '.png';
+  if (type === 'image/gif') return '.gif';
+  if (type === 'image/webp') return '.webp';
+  return '';
+};
+
+export async function POST(req: Request) {
+  const session = await verifySession();
+  if (!session) {
+    return NextResponse.json({ message: 'Sesi tidak valid' }, { status: 401 });
+  }
+
+  try {
+    const formData = await req.formData();
+    const file = formData.get('file') as File | null;
+
+    if (!file || typeof file === 'string') {
+      return NextResponse.json({ message: 'Dokumen wajib diunggah' }, { status: 400 });
+    }
+
+    if (!allowedTypes.has(file.type)) {
+      return NextResponse.json({ message: 'Dokumen harus berupa PDF atau gambar' }, { status: 400 });
+    }
+
+    if (file.size > maxFileSize) {
+      return NextResponse.json({ message: 'Ukuran dokumen maksimal 10MB' }, { status: 400 });
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'iku-documents');
+    await mkdir(uploadDir, { recursive: true });
+
+    const originalExt = path.extname(file.name).toLowerCase();
+    const extension = originalExt || extensionFromType(file.type);
+    const filename = `${randomUUID()}${extension}`;
+    await writeFile(path.join(uploadDir, filename), bytes);
+
+    return NextResponse.json({
+      documentUrl: `/uploads/iku-documents/${filename}`,
+      documentName: file.name,
+      documentType: file.type,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
+  }
+}

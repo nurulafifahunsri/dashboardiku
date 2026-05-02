@@ -22,6 +22,9 @@ const ikuDataToDb = (payload: any) => {
         ikuNum: payload.ikuNum,
         indicator: payload.indicator,
         unit: payload.unit,
+        documentUrl: normalizeCell(payload.documentUrl) || null,
+        documentName: normalizeCell(payload.documentName) || null,
+        documentType: normalizeCell(payload.documentType) || null,
     };
 
     years.forEach((year) => {
@@ -69,6 +72,9 @@ export async function POST(req: Request) {
                 ikuNum: normalizeCell(row.ikuNum),
                 indicator: normalizeCell(row.indicator),
                 unit: normalizeCell(row.unit),
+                documentUrl: normalizeCell(row.documentUrl),
+                documentName: normalizeCell(row.documentName),
+                documentType: normalizeCell(row.documentType),
                 targets: {
                     '2025': normalizeCell(row.target_2025),
                     '2026': normalizeCell(row.target_2026),

@@ -10,6 +10,9 @@ export interface IKUData {
   unit: string;
   targets: Record<Year, string | number>;
   achievements?: Partial<Record<Year, string | number>>;
+  documentUrl?: string;
+  documentName?: string;
+  documentType?: string;
   updatedAt?: string;
 }
 
