@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { User } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { createSession } from '@/lib/auth';
+import { verifyTotpCode } from '@/lib/totp';
 
 export async function POST(req: Request) {
     try {
-        const { username, password } = await req.json();
+        const { username, password, totpCode } = await req.json();
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Username/email dan password wajib diisi' }, { status: 400 });
@@ -27,6 +28,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Kredensial tidak valid' }, { status: 401 });
         }
 
+        if (user.getDataValue('totp_enabled')) {
+            const secret = user.getDataValue('totp_secret');
+            if (!totpCode) {
+                return NextResponse.json({ requiresTotp: true });
+            }
+            if (!secret || !verifyTotpCode(secret, totpCode)) {
+                return NextResponse.json({ error: 'Kode Google Authenticator tidak valid', requiresTotp: true }, { status: 401 });
+            }
+        }
+
         await createSession({
             userId: user.getDataValue('id'),
             role: user.getDataValue('role'),
@@ -39,6 +50,7 @@ export async function POST(req: Request) {
                 name: user.getDataValue('name'),
                 email: user.getDataValue('email'),
                 role: user.getDataValue('role'),
+                totpEnabled: Boolean(user.getDataValue('totp_enabled')),
             }
         });
 

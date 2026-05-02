@@ -6,7 +6,17 @@ import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
-const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const allowedTypes = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'text/csv',
+  'application/csv',
+  'application/vnd.ms-excel',
+]);
+const allowedExtensions = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.csv']);
 const maxFileSize = 10 * 1024 * 1024;
 
 const extensionFromType = (type: string) => {
@@ -15,6 +25,7 @@ const extensionFromType = (type: string) => {
   if (type === 'image/png') return '.png';
   if (type === 'image/gif') return '.gif';
   if (type === 'image/webp') return '.webp';
+  if (type === 'text/csv' || type === 'application/csv' || type === 'application/vnd.ms-excel') return '.csv';
   return '';
 };
 
@@ -32,8 +43,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Dokumen wajib diunggah' }, { status: 400 });
     }
 
-    if (!allowedTypes.has(file.type)) {
-      return NextResponse.json({ message: 'Dokumen harus berupa PDF atau gambar' }, { status: 400 });
+    const originalExt = path.extname(file.name).toLowerCase();
+    if (!allowedTypes.has(file.type) && !allowedExtensions.has(originalExt)) {
+      return NextResponse.json({ message: 'Dokumen harus berupa PDF, gambar, atau CSV' }, { status: 400 });
     }
 
     if (file.size > maxFileSize) {
@@ -44,8 +56,7 @@ export async function POST(req: Request) {
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'iku-documents');
     await mkdir(uploadDir, { recursive: true });
 
-    const originalExt = path.extname(file.name).toLowerCase();
-    const extension = originalExt || extensionFromType(file.type);
+    const extension = allowedExtensions.has(originalExt) ? originalExt : extensionFromType(file.type);
     const filename = `${randomUUID()}${extension}`;
     await writeFile(path.join(uploadDir, filename), bytes);
 

@@ -11,6 +11,8 @@ interface Props {
 const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackToDashboard }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [requiresTotp, setRequiresTotp] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
     const errors: Record<string, string> = {};
     if (!username.trim()) errors.username = "Username atau email wajib diisi.";
     if (!password.trim()) errors.password = "Password wajib diisi.";
+    if (requiresTotp && !/^\d{6}$/.test(totpCode.replace(/\s/g, ""))) errors.totpCode = "Kode Google Authenticator wajib 6 digit.";
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
     setLoading(true);
@@ -35,11 +38,19 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, totpCode: requiresTotp ? totpCode : undefined }),
       });
       const data = await res.json();
 
+      if (data.requiresTotp && res.ok) {
+        setRequiresTotp(true);
+        setError("");
+        setFieldErrors({});
+        return;
+      }
+
       if (!res.ok) {
+        if (data.requiresTotp) setRequiresTotp(true);
         throw new Error(data.error || "Autentikasi gagal");
       }
 
@@ -118,6 +129,8 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                     value={username}
                     onChange={(e) => {
                       setUsername(e.target.value);
+                      setRequiresTotp(false);
+                      setTotpCode("");
                       setFieldErrors((prev) => ({ ...prev, username: "" }));
                     }}
                     placeholder="Ex. johndoe@gmail.com"
@@ -139,6 +152,8 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
+                      setRequiresTotp(false);
+                      setTotpCode("");
                       setFieldErrors((prev) => ({ ...prev, password: "" }));
                     }}
                     placeholder="••••••"
@@ -148,6 +163,29 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                 </div>
                 {fieldError("password")}
               </label>
+
+              {requiresTotp && (
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Kode Google Authenticator</span>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-700">
+                      <ShieldCheck size={17} />
+                    </span>
+                    <input
+                      inputMode="numeric"
+                      value={totpCode}
+                      onChange={(e) => {
+                        setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                        setFieldErrors((prev) => ({ ...prev, totpCode: "" }));
+                      }}
+                      placeholder="123456"
+                      aria-invalid={Boolean(fieldErrors.totpCode)}
+                      className={inputClass("totpCode")}
+                    />
+                  </div>
+                  {fieldError("totpCode")}
+                </label>
+              )}
 
               <div className="flex justify-end">
                 <button
@@ -165,7 +203,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                 disabled={loading}
                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-3 text-sm font-bold text-white transition-all hover:translate-y-[-1px] hover:bg-emerald-800 disabled:opacity-70"
               >
-                {loading ? "Memverifikasi..." : "Masuk"}
+                {loading ? "Memverifikasi..." : requiresTotp ? "Verifikasi Kode" : "Masuk"}
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
               </button>
             </form>

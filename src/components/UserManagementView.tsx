@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowDownAZ, ArrowUpAZ, Search } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Plus, Search, X } from "lucide-react";
+import ModalShell from "./ModalShell";
 
 interface User {
   id: string;
@@ -30,6 +31,7 @@ const UserManagementView: React.FC = () => {
   const [form, setForm] = useState({ id: "", username: "", name: "", email: "", password: "", role: "viewer" });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const fieldClass = (key: string) =>
     `w-full rounded-lg border bg-white px-3 py-2.5 ${formErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-2 focus:ring-rose-100" : "border-[var(--border)]"}`;
@@ -60,6 +62,14 @@ const UserManagementView: React.FC = () => {
   const resetForm = () => {
     setForm({ id: "", username: "", name: "", email: "", password: "", role: "viewer" });
     setIsEditing(false);
+    setIsFormOpen(false);
+    setFormErrors({});
+  };
+
+  const openCreateForm = () => {
+    setForm({ id: "", username: "", name: "", email: "", password: "", role: "viewer" });
+    setIsEditing(false);
+    setIsFormOpen(true);
     setFormErrors({});
     setError("");
     setMessage("");
@@ -68,6 +78,7 @@ const UserManagementView: React.FC = () => {
   const handleEdit = (user: User) => {
     setForm({ id: user.id, username: user.username, name: user.name, email: user.email, password: "", role: user.role });
     setIsEditing(true);
+    setIsFormOpen(true);
     setFormErrors({});
     setError("");
     setMessage("");
@@ -171,13 +182,42 @@ const UserManagementView: React.FC = () => {
   return (
     <div className="space-y-5">
       <section className="surface-card rounded-3xl p-5 sm:p-6">
-        <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Manajemen User (Admin)</h2>
-        <p className="text-sm text-[var(--muted)]">Kelola akun pengguna, email, role, dan kredensial akses.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="display-font text-2xl font-bold text-[var(--ink)]">Manajemen User (Admin)</h2>
+            <p className="text-sm text-[var(--muted)]">Kelola akun pengguna, email, role, dan kredensial akses.</p>
+          </div>
+          <button type="button" onClick={openCreateForm} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white">
+            <Plus size={16} />
+            Tambah User
+          </button>
+        </div>
 
         {message && <p className="mt-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700">{message}</p>}
         {error && <p className="mt-4 rounded-lg bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
 
-        <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+        {isFormOpen && (
+          <ModalShell
+            onClose={resetForm}
+            labelledBy="user-form-title"
+            className="surface-card max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-3xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+              <div>
+                <h3 id="user-form-title" className="display-font text-xl font-bold text-[var(--ink)]">{isEditing ? "Edit User" : "Tambah User"}</h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">Atur identitas, email, role, dan password akun.</p>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+                aria-label="Tutup form"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+        <form onSubmit={handleSubmit} noValidate className="max-h-[calc(92vh-86px)] space-y-4 overflow-auto bg-[var(--surface-2)] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Username</span>
@@ -216,16 +256,16 @@ const UserManagementView: React.FC = () => {
           </div>
 
           <div className="flex gap-2 pt-1">
-            <button disabled={loading} type="submit" className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">
-              {isEditing ? "Simpan Perubahan" : "Tambah User Baru"}
-            </button>
-            {isEditing && (
+              <button disabled={loading} type="submit" className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white disabled:opacity-60">
+                {isEditing ? "Simpan Perubahan" : "Tambah User Baru"}
+              </button>
               <button type="button" onClick={resetForm} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)]">
                 Batal
               </button>
-            )}
           </div>
         </form>
+          </ModalShell>
+        )}
       </section>
 
       <section className="surface-card rounded-3xl p-5 sm:p-6">

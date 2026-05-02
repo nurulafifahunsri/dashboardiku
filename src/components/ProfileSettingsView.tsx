@@ -1,11 +1,12 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface Props {
     user: {
         username: string;
         name: string;
         email: string;
+        totpEnabled: boolean;
     };
     onRefreshSession: () => void;
 }
@@ -13,12 +14,22 @@ interface Props {
 const ProfileSettingsView: React.FC<Props> = ({ user, onRefreshSession }) => {
     const [profileForm, setProfileForm] = useState({ name: user.name, username: user.username, email: user.email });
     const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+    const [totpEnabled, setTotpEnabled] = useState(Boolean(user.totpEnabled));
+    const [totpSetup, setTotpSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+    const [totpCode, setTotpCode] = useState('');
 
     const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
     const [passMsg, setPassMsg] = useState({ text: '', type: '' });
+    const [totpMsg, setTotpMsg] = useState({ text: '', type: '' });
     const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
     const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+    const [totpErrors, setTotpErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        setProfileForm({ name: user.name, username: user.username, email: user.email });
+        setTotpEnabled(Boolean(user.totpEnabled));
+    }, [user.email, user.name, user.totpEnabled, user.username]);
 
     const inputClass = (errors: Record<string, string>, key: string) =>
         `w-full rounded-lg border px-4 py-2.5 text-sm ${errors[key] ? 'border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-2 focus:ring-rose-100' : 'border-[var(--border)]'}`;
@@ -81,6 +92,81 @@ const ProfileSettingsView: React.FC<Props> = ({ user, onRefreshSession }) => {
             setPasswordForm({ currentPassword: '', newPassword: '' });
         } catch (err) {
             setPassMsg({ text: err instanceof Error ? err.message : 'Error', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTotpSetup = async () => {
+        setTotpMsg({ text: '', type: '' });
+        setTotpErrors({});
+        setLoading(true);
+
+        try {
+            const res = await fetch('/api/users/totp/setup', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Gagal membuat secret authenticator');
+
+            setTotpSetup({ secret: data.secret, otpauthUrl: data.otpauthUrl });
+            setTotpCode('');
+            setTotpEnabled(false);
+            setTotpMsg({ text: 'Secret dibuat. Masukkan kode 6 digit dari Google Authenticator untuk mengaktifkan.', type: 'success' });
+        } catch (err) {
+            setTotpMsg({ text: err instanceof Error ? err.message : 'Error', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTotpVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setTotpMsg({ text: '', type: '' });
+        const normalizedCode = totpCode.replace(/\s/g, '');
+        const errors: Record<string, string> = {};
+        if (!/^\d{6}$/.test(normalizedCode)) errors.code = 'Kode Google Authenticator wajib 6 digit.';
+        setTotpErrors(errors);
+        if (Object.keys(errors).length) return;
+
+        setLoading(true);
+
+        try {
+            const res = await fetch('/api/users/totp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: normalizedCode })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Kode tidak valid');
+
+            setTotpEnabled(true);
+            setTotpSetup(null);
+            setTotpCode('');
+            setTotpMsg({ text: 'Google Authenticator berhasil diaktifkan.', type: 'success' });
+            onRefreshSession();
+        } catch (err) {
+            setTotpMsg({ text: err instanceof Error ? err.message : 'Error', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTotpDisable = async () => {
+        if (!window.confirm('Nonaktifkan Google Authenticator untuk akun ini?')) return;
+        setTotpMsg({ text: '', type: '' });
+        setLoading(true);
+
+        try {
+            const res = await fetch('/api/users/totp', { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Gagal menonaktifkan authenticator');
+
+            setTotpEnabled(false);
+            setTotpSetup(null);
+            setTotpCode('');
+            setTotpMsg({ text: 'Google Authenticator dinonaktifkan.', type: 'success' });
+            onRefreshSession();
+        } catch (err) {
+            setTotpMsg({ text: err instanceof Error ? err.message : 'Error', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -183,6 +269,91 @@ const ProfileSettingsView: React.FC<Props> = ({ user, onRefreshSession }) => {
                         <button disabled={loading} type="submit" className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-emerald-800">Perbarui Password</button>
                     </div>
                 </form>
+
+                <section className="mt-12 max-w-2xl">
+                    <div className="mb-4 border-b border-[var(--border)] pb-2">
+                        <h3 className="text-lg font-bold">Google Authenticator</h3>
+                        <p className="mt-1 text-sm text-[var(--muted)]">
+                            Status: <span className={totpEnabled ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{totpEnabled ? 'Aktif' : 'Nonaktif'}</span>
+                        </p>
+                    </div>
+
+                    {totpMsg.text && (
+                        <div className={`mb-4 rounded-xl p-3 text-sm font-semibold ${totpMsg.type === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {totpMsg.text}
+                        </div>
+                    )}
+
+                    {!totpSetup && (
+                        <div className="flex flex-wrap gap-2">
+                            {!totpEnabled && (
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={handleTotpSetup}
+                                    className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-emerald-800 disabled:opacity-60"
+                                >
+                                    Aktifkan Authenticator
+                                </button>
+                            )}
+                            {totpEnabled && (
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={handleTotpDisable}
+                                    className="rounded-xl border border-rose-200 bg-white px-5 py-2.5 text-sm font-bold text-rose-700 transition-all hover:bg-rose-50 disabled:opacity-60"
+                                >
+                                    Nonaktifkan
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {totpSetup && (
+                        <form onSubmit={handleTotpVerify} noValidate className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+                                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Manual Key</p>
+                                <p className="mt-2 break-all font-mono text-sm font-bold text-[var(--ink)]">{totpSetup.secret}</p>
+                                <a href={totpSetup.otpauthUrl} className="mt-3 inline-flex text-sm font-semibold text-emerald-700">
+                                    Buka di aplikasi authenticator
+                                </a>
+                            </div>
+
+                            <label className="block max-w-xs">
+                                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Kode 6 Digit</span>
+                                <input
+                                    inputMode="numeric"
+                                    value={totpCode}
+                                    onChange={(e) => {
+                                        setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                                        setTotpErrors((prev) => ({ ...prev, code: '' }));
+                                    }}
+                                    placeholder="123456"
+                                    aria-invalid={Boolean(totpErrors.code)}
+                                    className={inputClass(totpErrors, 'code')}
+                                />
+                                {fieldError(totpErrors, 'code')}
+                            </label>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button disabled={loading} type="submit" className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-emerald-800 disabled:opacity-60">
+                                    Verifikasi dan Aktifkan
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTotpSetup(null);
+                                        setTotpCode('');
+                                        setTotpErrors({});
+                                    }}
+                                    className="rounded-xl border border-[var(--border)] bg-white px-5 py-2.5 text-sm font-bold text-[var(--ink)]"
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </section>
             </section>
         </div>
     );

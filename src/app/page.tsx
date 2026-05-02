@@ -28,6 +28,7 @@ import ProfileSettingsView from "../components/ProfileSettingsView";
 import ForgotPasswordView from "../components/ForgotPasswordView";
 import ResetPasswordView from "../components/ResetPasswordView";
 import MasterYearManagementView from "../components/MasterYearManagementView";
+import ModalShell from "../components/ModalShell";
 import { ikuApi } from "../services/ikuApi";
 
 type MenuKey =
@@ -50,6 +51,7 @@ interface UserSession {
   name: string;
   email: string;
   role: "admin" | "viewer";
+  totpEnabled: boolean;
 }
 
 const PUBLIC_MENUS: MenuKey[] = [
@@ -497,33 +499,35 @@ function DashboardPage() {
       </div>
 
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
-          <div className="surface-card w-full max-w-md rounded-2xl border border-[var(--border)] p-6 shadow-[var(--shadow-strong)]">
-            <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-              <TriangleAlert size={18} />
-            </div>
-            <h3 className="display-font text-xl font-bold text-[var(--ink)]">Konfirmasi Logout</h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Anda yakin ingin keluar dari sesi sekarang?
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowLogoutModal(false)}
-                className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)]"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={confirmLogout}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
-              >
-                Ya, Logout
-              </button>
-            </div>
+        <ModalShell
+          onClose={() => setShowLogoutModal(false)}
+          ariaLabel="Konfirmasi logout"
+          className="surface-card w-full max-w-md rounded-2xl border border-[var(--border)] p-6 shadow-[var(--shadow-strong)]"
+        >
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+            <TriangleAlert size={18} />
           </div>
-        </div>
+          <h3 className="display-font text-xl font-bold text-[var(--ink)]">Konfirmasi Logout</h3>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Anda yakin ingin keluar dari sesi sekarang?
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(false)}
+              className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)]"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={confirmLogout}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              Ya, Logout
+            </button>
+          </div>
+        </ModalShell>
       )}
     </div>
   );

@@ -2,8 +2,9 @@
 import React, { useMemo, useState } from "react";
 import { IKUData, MasterYear, SasaranProgram, Year } from "../types";
 import { ikuApi } from "../services/ikuApi";
-import { ArrowDownAZ, ArrowUpAZ, Search, UploadCloud, X } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Plus, Search, UploadCloud, X } from "lucide-react";
 import DocumentPreview from "./DocumentPreview";
+import ModalShell from "./ModalShell";
 
 interface Props {
   data: IKUData[];
@@ -16,7 +17,8 @@ type SortDirection = "asc" | "desc";
 type FormErrors = Record<string, string>;
 
 const maxDocumentSize = 10 * 1024 * 1024;
-const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"]);
+const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp", "text/csv", "application/csv", "application/vnd.ms-excel"]);
+const allowedDocumentExtensions = /\.(pdf|png|jpe?g|gif|webp|csv)$/i;
 
 const emptyForm = (): IKUData => ({
   id: "",
@@ -61,6 +63,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
 
   const [form, setForm] = useState<IKUData>(emptyForm());
   const [isEditing, setIsEditing] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -168,7 +171,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
     });
 
     if (file) {
-      if (!allowedDocumentTypes.has(file.type)) errors.document = "Dokumen harus berupa PDF atau gambar.";
+      if (!allowedDocumentTypes.has(file.type) && !allowedDocumentExtensions.test(file.name)) errors.document = "Dokumen harus berupa PDF, gambar, atau CSV.";
       if (file.size > maxDocumentSize) errors.document = "Ukuran dokumen maksimal 10MB.";
     }
 
@@ -198,7 +201,18 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
     clearSelectedDocument();
     setForm(emptyForm());
     setIsEditing(false);
+    setIsFormOpen(false);
     setFormErrors({});
+  };
+
+  const openCreateForm = () => {
+    setError("");
+    setMessage("");
+    clearSelectedDocument();
+    setForm(emptyForm());
+    setIsEditing(false);
+    setFormErrors({});
+    setIsFormOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -244,6 +258,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
       achievements: { ...emptyForm().achievements, ...item.achievements },
     });
     setIsEditing(true);
+    setIsFormOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -320,12 +335,37 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
           <button type="button" onClick={() => onDataChanged()} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--ink)]">
             Refresh
           </button>
+          <button type="button" onClick={openCreateForm} className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-bold text-white">
+            <Plus size={16} />
+            Tambah Data
+          </button>
         </div>
 
         {message && <p className="mb-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700">{message}</p>}
         {error && <p className="mb-4 rounded-lg bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+        {isFormOpen && (
+          <ModalShell
+            onClose={resetState}
+            labelledBy="iku-form-title"
+            className="surface-card max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+              <div>
+                <h3 id="iku-form-title" className="display-font text-xl font-bold text-[var(--ink)]">{isEditing ? "Edit Data IKU" : "Tambah Data IKU"}</h3>
+                <p className="mt-1 text-sm text-[var(--muted)]">Isi indikator, target, realisasi, dan dokumen pendukung.</p>
+              </div>
+              <button
+                type="button"
+                onClick={resetState}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+                aria-label="Tutup form"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+        <form onSubmit={handleSubmit} noValidate className="max-h-[calc(92vh-86px)] space-y-5 overflow-auto bg-[var(--surface-2)] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Kategori</span>
@@ -422,12 +462,12 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
             <p className="mb-3 text-sm font-bold text-[var(--ink)]">Dokumen Pendukung</p>
             <label className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center ${formErrors.document ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-[var(--surface-2)]"}`}>
               <UploadCloud size={24} className="mb-2 text-emerald-700" />
-              <span className="text-sm font-semibold text-[var(--ink)]">Unggah PDF atau gambar</span>
+              <span className="text-sm font-semibold text-[var(--ink)]">Unggah PDF, gambar, atau CSV</span>
               <span className="mt-1 text-xs text-[var(--muted)]">Maksimal 10MB</span>
               <input
                 key={documentInputKey}
                 type="file"
-                accept="application/pdf,image/png,image/jpeg,image/gif,image/webp"
+                accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/csv,application/csv,application/vnd.ms-excel,.csv"
                 className="hidden"
                 onChange={handleDocumentChange}
                 aria-invalid={Boolean(formErrors.document)}
@@ -456,10 +496,12 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
               {isEditing ? "Simpan Perubahan" : "Tambah Data"}
             </button>
             <button type="button" onClick={resetState} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink)]">
-              Reset
+              Batal
             </button>
           </div>
         </form>
+          </ModalShell>
+        )}
       </section>
 
       <section className="surface-card rounded-3xl p-5 sm:p-6">

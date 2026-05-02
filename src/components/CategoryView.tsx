@@ -218,23 +218,21 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                   Grid
                 </button>
               </div>
-              {viewMode === 'table' && (
-                <label className="text-sm">
-                  <span className="mr-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Data/Halaman</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
-                  >
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                  </select>
-                </label>
-              )}
+              <label className="text-sm">
+                <span className="mr-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Data/Halaman</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                </select>
+              </label>
             </div>
           </div>
         </div>
@@ -336,7 +334,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
 
       {viewMode === 'grid' && (
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {sortedRows.map((item, idx) => {
+        {pagedRows.map((item, idx) => {
           const targetValue = item.targets[year];
           const achievementValue = item.achievements ? item.achievements[year] : undefined;
           const info = getStatusInfo(achievementValue, targetValue);
@@ -389,18 +387,43 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                 </div>
                 <div className="mt-3 flex items-center gap-2 text-xs text-[var(--muted)]">
                   <Scale size={13} />
-                  <span>Prioritas #{idx + 1} untuk kategori {category}</span>
+                  <span>Prioritas #{startIndex + idx + 1} untuk kategori {category}</span>
                 </div>
               </div>
             </article>
           );
         })}
-        {sortedRows.length === 0 && (
+        {pagedRows.length === 0 && (
           <div className="surface-card rounded-2xl p-6 text-center text-sm text-[var(--muted)] lg:col-span-2">
             Tidak ada data sesuai pencarian/filter.
           </div>
         )}
       </section>
+      )}
+      {viewMode === 'grid' && (
+        <div className="surface-card flex flex-wrap items-center justify-between gap-3 rounded-2xl px-5 py-4">
+          <p className="text-sm text-[var(--muted)]">
+            Halaman <strong>{safeCurrentPage}</strong> dari <strong>{totalPages}</strong>
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={safeCurrentPage === 1}
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+            >
+              Sebelumnya
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={safeCurrentPage === totalPages}
+              className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+            >
+              Berikutnya
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

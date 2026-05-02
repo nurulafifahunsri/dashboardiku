@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { IKUData, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle, X } from "lucide-react";
+import ModalShell from "./ModalShell";
 
 interface Props {
   year: Year;
@@ -193,7 +194,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
 
   const distributionByCategory = useMemo(() => {
     return Object.values(SasaranProgram).map((category) => {
-      const categoryItems = data.filter((item) => item.category === category);
+      const categoryItems = data.filter((item) => item.category === category && hasYearEntry(item, year));
       const groupedChild = categoryItems
         .reduce<Record<string, IKUData[]>>((acc, item) => {
           acc[item.ikuNum] = [...(acc[item.ikuNum] || []), item];
@@ -220,11 +221,17 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         rows,
       };
     });
-  }, [data]);
+  }, [data, year]);
+
+  const trendYears = useMemo(() => {
+    const selectedIndex = availableYears.indexOf(year);
+    const previousYear = selectedIndex > 0 ? availableYears[selectedIndex - 1] : undefined;
+    return [previousYear, year].filter(Boolean) as Year[];
+  }, [availableYears, year]);
 
   const weightedTrend = useMemo(
     () =>
-      availableYears.map((currentYear) => {
+      trendYears.map((currentYear) => {
         const details = Object.values(SasaranProgram).map((category) => {
           const categoryItems = data.filter((item) => item.category === category && hasYearEntry(item, currentYear));
           const achieved = categoryItems.filter((item) => compareAchievement(item, currentYear) === true).length;
@@ -248,7 +255,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           [SasaranProgram.TataKelola]: details.find((item) => item.category === SasaranProgram.TataKelola)?.score ?? 0,
         };
       }),
-    [availableYears, data]
+    [data, trendYears]
   );
 
   const modalChartData = useMemo(() => {
@@ -388,59 +395,55 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
       </section>
 
       {selectedDistribution && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="distribution-detail-title"
-          onClick={() => setSelectedDistribution(null)}
+        <ModalShell
+          onClose={() => setSelectedDistribution(null)}
+          labelledBy="distribution-detail-title"
+          className="surface-card max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl"
         >
-          <div className="surface-card max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
-              <div>
-                <h3 id="distribution-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
-                  {selectedDistribution.category} - {selectedDistribution.ikuNum}
-                </h3>
-                <p className="mt-1 text-sm text-[var(--muted)]">{selectedDistribution.indicatorCount} indikator</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDistribution(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
-                aria-label="Tutup modal"
-              >
-                <X size={18} />
-              </button>
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <div>
+              <h3 id="distribution-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
+                {selectedDistribution.category} - {selectedDistribution.ikuNum}
+              </h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">{selectedDistribution.indicatorCount} indikator</p>
             </div>
+            <button
+              type="button"
+              onClick={() => setSelectedDistribution(null)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+              aria-label="Tutup modal"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-            <div className="max-h-[calc(92vh-86px)] overflow-auto px-5 py-5 sm:px-6">
-              <div className="min-w-[760px]" style={{ width: Math.max(760, modalChartData.length * 190), height: Math.max(360, modalChartData.length * 28 + 260) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={modalChartData} margin={{ left: 18, right: 24, top: 18, bottom: 98 }}>
-                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
-                    <XAxis
-                      dataKey="indicator"
-                      interval={0}
-                      angle={-24}
-                      textAnchor="end"
-                      height={112}
-                      tick={{ fontSize: 10, fontWeight: 700, fill: "#495a4f" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
-                      <Label value="Jumlah / Persentase" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
-                    </YAxis>
-                    <Tooltip content={<TargetRealizationTooltip />} />
-                    <Legend verticalAlign="top" height={32} />
-                    <Bar dataKey="target" name="Target" fill="#ce7b34" radius={[8, 8, 0, 0]} minPointSize={2} />
-                    <Bar dataKey="realization" name="Realisasi" fill="#17624a" radius={[8, 8, 0, 0]} minPointSize={2} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+          <div className="max-h-[calc(92vh-86px)] overflow-auto px-5 py-5 sm:px-6">
+            <div className="min-w-[760px]" style={{ width: Math.max(760, modalChartData.length * 190), height: Math.max(360, modalChartData.length * 28 + 260) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={modalChartData} margin={{ left: 18, right: 24, top: 18, bottom: 98 }}>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
+                  <XAxis
+                    dataKey="indicator"
+                    interval={0}
+                    angle={-24}
+                    textAnchor="end"
+                    height={112}
+                    tick={{ fontSize: 10, fontWeight: 700, fill: "#495a4f" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
+                    <Label value="Jumlah / Persentase" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
+                  </YAxis>
+                  <Tooltip content={<TargetRealizationTooltip />} />
+                  <Legend verticalAlign="top" height={32} />
+                  <Bar dataKey="target" name="Target" fill="#ce7b34" radius={[8, 8, 0, 0]} minPointSize={2} />
+                  <Bar dataKey="realization" name="Realisasi" fill="#17624a" radius={[8, 8, 0, 0]} minPointSize={2} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

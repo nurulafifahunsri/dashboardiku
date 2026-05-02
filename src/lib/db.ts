@@ -49,6 +49,8 @@ export interface UserAttributes {
     role: 'admin' | 'viewer';
     reset_token?: string | null;
     reset_token_expires_at?: Date | null;
+    totp_secret?: string | null;
+    totp_enabled?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -132,6 +134,15 @@ export const User = sequelize.define<Model<UserAttributes>>('User', {
     reset_token_expires_at: {
         type: DataTypes.DATE,
         allowNull: true,
+    },
+    totp_secret: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+    },
+    totp_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
     }
 }, {
     tableName: 'users',

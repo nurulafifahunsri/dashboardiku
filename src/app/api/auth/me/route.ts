@@ -10,7 +10,7 @@ export async function GET() {
 
     try {
         const user = await User.findByPk(session.userId as string, {
-            attributes: ['id', 'username', 'name', 'email', 'role'],
+            attributes: ['id', 'username', 'name', 'email', 'role', 'totp_enabled'],
         });
 
         if (!user) {
@@ -24,6 +24,7 @@ export async function GET() {
                 name: user.getDataValue('name'),
                 email: user.getDataValue('email'),
                 role: user.getDataValue('role'),
+                totpEnabled: Boolean(user.getDataValue('totp_enabled')),
             }
         });
     } catch (error) {
