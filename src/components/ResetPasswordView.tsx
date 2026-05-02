@@ -13,19 +13,30 @@ const ResetPasswordView: React.FC<Props> = ({ token, onBackToLogin }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const inputClass = (key: string) =>
+    `w-full rounded-xl border bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:ring-2 ${fieldErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-rose-100" : "border-[var(--border)] focus:border-emerald-700 focus:ring-emerald-200"}`;
+
+  const fieldError = (key: string) =>
+    fieldErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[key]}</p> : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMessage("");
+    const errors: Record<string, string> = {};
 
     if (newPassword.length < 8) {
-      setError("Password minimal 8 karakter.");
-      return;
+      errors.newPassword = "Password minimal 8 karakter.";
     }
 
     if (newPassword !== confirmPassword) {
-      setError("Konfirmasi password tidak sama.");
+      errors.confirmPassword = "Konfirmasi password tidak sama.";
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
       return;
     }
 
@@ -68,7 +79,7 @@ const ResetPasswordView: React.FC<Props> = ({ token, onBackToLogin }) => {
           Masukkan password baru Anda. Pastikan kombinasi kuat dan mudah Anda ingat.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-5">
           {message && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               <div className="flex items-center gap-2">
@@ -92,12 +103,16 @@ const ResetPasswordView: React.FC<Props> = ({ token, onBackToLogin }) => {
               <input
                 type="password"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, newPassword: "" }));
+                }}
                 placeholder="Minimal 8 karakter"
-                className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
-                required
+                aria-invalid={Boolean(fieldErrors.newPassword)}
+                className={inputClass("newPassword")}
               />
             </div>
+            {fieldError("newPassword")}
           </label>
 
           <label className="block">
@@ -109,12 +124,16 @@ const ResetPasswordView: React.FC<Props> = ({ token, onBackToLogin }) => {
               <input
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                }}
                 placeholder="Ulangi password baru"
-                className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
-                required
+                aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                className={inputClass("confirmPassword")}
               />
             </div>
+            {fieldError("confirmPassword")}
           </label>
 
           <button

@@ -11,12 +11,26 @@ const ForgotPasswordView: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setMessage("");
+    setFieldError("");
+
+    if (!email.trim()) {
+      setLoading(false);
+      setFieldError("Email wajib diisi.");
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setLoading(false);
+      setFieldError("Format email tidak valid.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/auth/forgot-password", {
@@ -55,7 +69,7 @@ const ForgotPasswordView: React.FC<Props> = ({ onBack }) => {
           Masukkan email akun Anda. Kami akan mengirimkan tautan reset password.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-5">
           {message && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               {message}
@@ -76,12 +90,16 @@ const ForgotPasswordView: React.FC<Props> = ({ onBack }) => {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldError("");
+                }}
                 placeholder="nama@fasilkom.ac.id"
-                className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
-                required
+                aria-invalid={Boolean(fieldError)}
+                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:ring-2 ${fieldError ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-rose-100" : "border-[var(--border)] focus:border-emerald-700 focus:ring-emerald-200"}`}
               />
             </div>
+            {fieldError && <p className="mt-1 text-xs font-semibold text-rose-600">{fieldError}</p>}
           </label>
 
           <button

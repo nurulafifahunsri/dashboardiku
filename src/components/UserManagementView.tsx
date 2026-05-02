@@ -28,7 +28,19 @@ const UserManagementView: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [form, setForm] = useState({ id: "", username: "", name: "", email: "", password: "", role: "viewer" });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
+
+  const fieldClass = (key: string) =>
+    `w-full rounded-lg border bg-white px-3 py-2.5 ${formErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-2 focus:ring-rose-100" : "border-[var(--border)]"}`;
+
+  const fieldError = (key: string) =>
+    formErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{formErrors[key]}</p> : null;
+
+  const updateForm = (field: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setFormErrors((prev) => ({ ...prev, [field]: "" }));
+  };
 
   const fetchUsers = async () => {
     try {
@@ -48,6 +60,7 @@ const UserManagementView: React.FC = () => {
   const resetForm = () => {
     setForm({ id: "", username: "", name: "", email: "", password: "", role: "viewer" });
     setIsEditing(false);
+    setFormErrors({});
     setError("");
     setMessage("");
   };
@@ -55,6 +68,7 @@ const UserManagementView: React.FC = () => {
   const handleEdit = (user: User) => {
     setForm({ id: user.id, username: user.username, name: user.name, email: user.email, password: "", role: user.role });
     setIsEditing(true);
+    setFormErrors({});
     setError("");
     setMessage("");
   };
@@ -77,6 +91,20 @@ const UserManagementView: React.FC = () => {
     setLoading(true);
     setError("");
     setMessage("");
+
+    const errors: Record<string, string> = {};
+    if (!form.username.trim()) errors.username = "Username wajib diisi.";
+    if (!form.name.trim()) errors.name = "Nama lengkap wajib diisi.";
+    if (!form.email.trim()) errors.email = "Email wajib diisi.";
+    else if (!/\S+@\S+\.\S+/.test(form.email)) errors.email = "Format email tidak valid.";
+    if (!isEditing && form.password.length < 8) errors.password = "Password minimal 8 karakter.";
+    if (isEditing && form.password && form.password.length < 8) errors.password = "Password minimal 8 karakter.";
+    if (!form.role) errors.role = "Role wajib dipilih.";
+    setFormErrors(errors);
+    if (Object.keys(errors).length) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const url = isEditing && form.id ? `/api/users/${form.id}` : "/api/users";
@@ -149,36 +177,41 @@ const UserManagementView: React.FC = () => {
         {message && <p className="mt-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700">{message}</p>}
         {error && <p className="mt-4 rounded-lg bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+        <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Username</span>
-              <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input value={form.username} onChange={(e) => updateForm("username", e.target.value)} aria-invalid={Boolean(formErrors.username)} className={fieldClass("username")} />
+              {fieldError("username")}
             </label>
 
             <label className="block text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Nama Lengkap</span>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input value={form.name} onChange={(e) => updateForm("name", e.target.value)} aria-invalid={Boolean(formErrors.name)} className={fieldClass("name")} />
+              {fieldError("name")}
             </label>
 
             <label className="block text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Email</span>
-              <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required />
+              <input type="email" value={form.email} onChange={(e) => updateForm("email", e.target.value)} aria-invalid={Boolean(formErrors.email)} className={fieldClass("email")} />
+              {fieldError("email")}
             </label>
 
             <label className="block text-sm">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
                 Password {isEditing && <span className="normal-case text-amber-600">(kosongkan jika tidak diubah)</span>}
               </span>
-              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5" required={!isEditing} />
+              <input type="password" value={form.password} onChange={(e) => updateForm("password", e.target.value)} aria-invalid={Boolean(formErrors.password)} className={fieldClass("password")} />
+              {fieldError("password")}
             </label>
 
             <label className="block text-sm md:col-span-2">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Role</span>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-[var(--ink)]">
+              <select value={form.role} onChange={(e) => updateForm("role", e.target.value)} aria-invalid={Boolean(formErrors.role)} className={`${fieldClass("role")} text-[var(--ink)]`}>
                 <option value="admin">Admin</option>
                 <option value="viewer">Viewer</option>
               </select>
+              {fieldError("role")}
             </label>
           </div>
 

@@ -12,11 +12,23 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const inputClass = (key: string) =>
+    `w-full rounded-xl border bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:ring-2 ${fieldErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-rose-100" : "border-[var(--border)] focus:border-emerald-700 focus:ring-emerald-200"}`;
+
+  const fieldError = (key: string) =>
+    fieldErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[key]}</p> : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const errors: Record<string, string> = {};
+    if (!username.trim()) errors.username = "Username atau email wajib diisi.";
+    if (!password.trim()) errors.password = "Password wajib diisi.";
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
     setLoading(true);
 
     try {
@@ -85,7 +97,7 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
           <div className="surface-card panel-in rounded-3xl p-7 shadow-[var(--shadow-strong)] sm:p-9">
             <h3 className="display-font text-xl font-bold text-[var(--ink)]">Dasbor IKU Fasilkom</h3>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-5">
               {error && (
                 <div className="animate-shake flex items-center gap-2 rounded-xl border border-rose-200 bg-[var(--danger-soft)] px-3 py-2.5 text-sm font-semibold text-[var(--danger)]">
                   <AlertCircle size={16} />
@@ -104,12 +116,16 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, username: "" }));
+                    }}
                     placeholder="Ex. johndoe@gmail.com"
-                    className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
-                    required
+                    aria-invalid={Boolean(fieldErrors.username)}
+                    className={inputClass("username")}
                   />
                 </div>
+                {fieldError("username")}
               </label>
 
               <label className="block">
@@ -121,12 +137,16 @@ const LoginView: React.FC<Props> = ({ onLoginSuccess, onForgotPassword, onBackTo
                   <input
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, password: "" }));
+                    }}
                     placeholder="••••••"
-                    className="w-full rounded-xl border border-[var(--border)] bg-white py-3 pl-10 pr-3 text-sm font-medium text-[var(--ink)] outline-none transition-all focus:border-emerald-700 focus:ring-2 focus:ring-emerald-200"
-                    required
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    className={inputClass("password")}
                   />
                 </div>
+                {fieldError("password")}
               </label>
 
               <div className="flex justify-end">

@@ -37,6 +37,13 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const fieldClass = (key: string) =>
+    `w-full rounded-lg border bg-white px-3 py-2.5 text-sm ${formErrors[key] ? "border-rose-400 bg-rose-50 focus:border-rose-500 focus:ring-2 focus:ring-rose-100" : "border-[var(--border)]"}`;
+
+  const fieldError = (key: string) =>
+    formErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{formErrors[key]}</p> : null;
 
   const usedYears = useMemo(() => new Set(years.map((y) => y.year)), [years]);
   const filteredRows = useMemo(() => {
@@ -75,13 +82,22 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
   const resetForm = () => {
     setForm(defaultForm);
     setIsEditing(false);
+    setFormErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
     setMessage("");
+    const errors: Record<string, string> = {};
+    if (!form.year) errors.year = "Tahun wajib dipilih.";
+    if (!isEditing && usedYears.has(form.year)) errors.year = "Tahun ini sudah terdaftar.";
+    if (!Number.isFinite(Number(form.sortOrder))) errors.sortOrder = "Urutan wajib berupa angka.";
+    if (form.label.length > 120) errors.label = "Label maksimal 120 karakter.";
+    setFormErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    setLoading(true);
 
     try {
       const endpoint = isEditing ? `/api/master-years/${form.id}` : "/api/master-years";
@@ -142,6 +158,7 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
     setIsEditing(true);
     setError("");
     setMessage("");
+    setFormErrors({});
   };
 
   const handleSort = (key: "year" | "label" | "sortOrder") => {
@@ -164,7 +181,7 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
         {message && <p className="mt-4 rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-700">{message}</p>}
         {error && <p className="mt-4 rounded-lg bg-rose-100 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
+        <form onSubmit={handleSubmit} noValidate className="mt-5 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4 sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Tahun</span>
@@ -173,9 +190,11 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
                 onChange={(e) => {
                   const selected = e.target.value as MasterYear["year"];
                   setForm((prev) => ({ ...prev, year: selected, sortOrder: Number(selected) }));
+                  setFormErrors((prev) => ({ ...prev, year: '' }));
                 }}
                 disabled={isEditing}
-                className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
+                aria-invalid={Boolean(formErrors.year)}
+                className={fieldClass("year")}
               >
                 {SUPPORTED_YEARS.map((year) => (
                   <option
@@ -187,16 +206,22 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
                   </option>
                 ))}
               </select>
+              {fieldError("year")}
             </label>
 
             <label className="text-sm">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Label Tahun</span>
               <input
                 value={form.label}
-                onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value }))}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, label: e.target.value }));
+                  setFormErrors((prev) => ({ ...prev, label: '' }));
+                }}
                 placeholder={`Tahun ${form.year}`}
-                className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
+                aria-invalid={Boolean(formErrors.label)}
+                className={fieldClass("label")}
               />
+              {fieldError("label")}
             </label>
 
             <label className="text-sm">
@@ -204,9 +229,14 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
               <input
                 type="number"
                 value={form.sortOrder}
-                onChange={(e) => setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))}
-                className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm"
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, sortOrder: Number(e.target.value) }));
+                  setFormErrors((prev) => ({ ...prev, sortOrder: '' }));
+                }}
+                aria-invalid={Boolean(formErrors.sortOrder)}
+                className={fieldClass("sortOrder")}
               />
+              {fieldError("sortOrder")}
             </label>
 
             <label className="flex items-end text-sm">
