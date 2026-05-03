@@ -166,7 +166,11 @@ const pushCell = (
 const toDocumentLink = (row: PerformanceContractRow, baseUrl: string) => {
   if (!row.documentUrl) return undefined;
   try {
-    return new URL(row.documentUrl, baseUrl).toString();
+    const url = new URL(row.documentUrl, baseUrl);
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?/i.test(url.origin)) {
+      return new URL(`${url.pathname}${url.search}`, baseUrl).toString();
+    }
+    return url.toString();
   } catch {
     return row.documentUrl;
   }

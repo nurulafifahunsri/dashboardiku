@@ -6,6 +6,34 @@ import { IKUData, SUPPORTED_YEARS, Year } from "@/types";
 
 export const runtime = "nodejs";
 
+const productionBaseUrl = "https://dashboardiku.ilkom.unsri.ac.id";
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
+
+const isLocalUrl = (value: string) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?/i.test(value);
+
+const resolvePublicBaseUrl = (req: Request, requestUrl: URL) => {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "";
+  if (configuredUrl && !isLocalUrl(configuredUrl)) return trimTrailingSlash(configuredUrl);
+
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+  if (forwardedHost) {
+    const forwardedUrl = `${forwardedProto}://${forwardedHost}`;
+    if (!isLocalUrl(forwardedUrl)) return trimTrailingSlash(forwardedUrl);
+  }
+
+  const host = req.headers.get("host")?.split(",")[0]?.trim();
+  if (host) {
+    const hostUrl = `${requestUrl.protocol.replace(":", "")}://${host}`;
+    if (!isLocalUrl(hostUrl)) return trimTrailingSlash(hostUrl);
+  }
+
+  if (configuredUrl) return trimTrailingSlash(configuredUrl);
+  if (!isLocalUrl(requestUrl.origin)) return trimTrailingSlash(requestUrl.origin);
+  return process.env.NODE_ENV === "production" ? productionBaseUrl : trimTrailingSlash(requestUrl.origin);
+};
+
 const normalizeCell = (value: any) => {
   if (value === null || value === undefined) return undefined;
   if (typeof value === "string") {
@@ -58,7 +86,7 @@ export async function GET(req: Request) {
     const rows = await IkuRecord.findAll({ order: [["createdAt", "ASC"]] });
     const data = rows.map((row) => rowToIkuData(row.get({ plain: true })));
     const contractRows = buildPerformanceContractRows(data, year);
-    const buffer = generatePerformanceContractPdf(contractRows, year, url.origin);
+    const buffer = generatePerformanceContractPdf(contractRows, year, resolvePublicBaseUrl(req, url));
 
     return new NextResponse(buffer, {
       status: 200,

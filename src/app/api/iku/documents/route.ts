@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { verifySession } from '@/lib/auth';
+import { documentPublicUrl, documentUploadDir } from '@/lib/ikuDocuments';
 
 export const runtime = 'nodejs';
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'iku-documents');
+    const uploadDir = documentUploadDir();
     await mkdir(uploadDir, { recursive: true });
 
     const extension = allowedExtensions.has(originalExt) ? originalExt : extensionFromType(file.type);
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     await writeFile(path.join(uploadDir, filename), bytes);
 
     return NextResponse.json({
-      documentUrl: `/uploads/iku-documents/${filename}`,
+      documentUrl: documentPublicUrl(filename),
       documentName: file.name,
       documentType: file.type,
     });
