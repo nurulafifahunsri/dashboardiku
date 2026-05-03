@@ -248,7 +248,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   }, [availableYears, year]);
 
   const radarDistributions = useMemo(
-    () => distributionByCategory.filter((distribution) => distribution.rows.length > 5),
+    () => distributionByCategory.filter((distribution) => distribution.rows.length > 0),
     [distributionByCategory]
   );
 
@@ -387,7 +387,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           <div>
             <h3 className="display-font mb-2 text-lg font-bold text-[var(--ink)]">Radar Jumlah Indikator per IKU</h3>
             <p className="text-sm text-[var(--muted)]">
-              Ditampilkan per sasaran ketika jumlah IKU pada tahun {year} lebih dari 5.
+              Ditampilkan per sasaran pada tahun {year}.
             </p>
           </div>
 
