@@ -35,6 +35,8 @@ const categoryColors: Record<SasaranProgram, string> = {
   [SasaranProgram.TataKelola]: "#b23b6b",
 };
 
+const MIN_RADAR_IKU_COUNT = 3;
+
 type DistributionRow = {
   category: SasaranProgram;
   ikuNum: string;
@@ -248,7 +250,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   }, [availableYears, year]);
 
   const radarDistributions = useMemo(
-    () => distributionByCategory.filter((distribution) => distribution.rows.length > 0),
+    () => distributionByCategory.filter((distribution) => distribution.rows.length >= MIN_RADAR_IKU_COUNT),
     [distributionByCategory]
   );
 
