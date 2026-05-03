@@ -12,6 +12,11 @@ import {
   LabelList,
   Label,
   Legend,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from "recharts";
 import { IKUData, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle, X } from "lucide-react";
@@ -167,6 +172,19 @@ const WeightedTrendTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const RadarIndicatorTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as DistributionRow | undefined;
+  if (!row) return null;
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs text-[var(--ink)] shadow-[var(--shadow-soft)]">
+      <p className="font-bold">{label}</p>
+      <p className="mt-1 text-[var(--muted)]">{row.indicatorCount} indikator</p>
+    </div>
+  );
+};
+
 const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
 
@@ -228,6 +246,11 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
     const previousYear = selectedIndex > 0 ? availableYears[selectedIndex - 1] : undefined;
     return [previousYear, year].filter(Boolean) as Year[];
   }, [availableYears, year]);
+
+  const radarDistributions = useMemo(
+    () => distributionByCategory.filter((distribution) => distribution.rows.length > 5),
+    [distributionByCategory]
+  );
 
   const weightedTrend = useMemo(
     () =>
@@ -358,6 +381,58 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           ))}
         </div>
       </section>
+
+      {radarDistributions.length > 0 && (
+        <section className="space-y-4">
+          <div>
+            <h3 className="display-font mb-2 text-lg font-bold text-[var(--ink)]">Radar Jumlah Indikator per IKU</h3>
+            <p className="text-sm text-[var(--muted)]">
+              Ditampilkan per sasaran ketika jumlah IKU pada tahun {year} lebih dari 5.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {radarDistributions.map((distribution) => (
+              <article key={`radar-${distribution.category}`} className="surface-card panel-in rounded-3xl p-5 sm:p-6">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 className="display-font text-base font-bold text-[var(--ink)]">{distribution.category}</h4>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                      {distribution.rows.length} IKU
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Indikator</p>
+                    <p className="text-sm font-bold" style={{ color: distribution.color }}>
+                      {distribution.rows.reduce((total, row) => total + row.indicatorCount, 0)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="h-[330px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={distribution.rows} outerRadius="72%">
+                      <PolarGrid stroke="#dbe8de" />
+                      <PolarAngleAxis dataKey="ikuNum" tick={{ fontSize: 11, fontWeight: 700, fill: "#495a4f" }} />
+                      <PolarRadiusAxis angle={30} allowDecimals={false} tick={{ fontSize: 10, fill: "#63756b" }} />
+                      <Tooltip content={<RadarIndicatorTooltip />} />
+                      <Radar
+                        name="Jumlah Indikator"
+                        dataKey="indicatorCount"
+                        stroke={distribution.color}
+                        fill={distribution.color}
+                        fillOpacity={0.24}
+                        dot={{ r: 3, fill: distribution.color }}
+                      />
+                      <Legend verticalAlign="bottom" height={24} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="surface-card panel-in rounded-3xl p-5 sm:p-6">
         <div className="mb-5">
