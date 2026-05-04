@@ -136,19 +136,29 @@ const ikuOrder = (ikuNum: string) => {
   return Number.isFinite(parsed) ? parsed : 999;
 };
 
-const splitLongWord = (word: string, maxLength = 8) => {
+const splitLongWord = (word: string, maxLength = 14) => {
   if (word.length <= maxLength) return [word];
   const chunks: string[] = [];
-  let cursor = 0;
-  while (cursor < word.length) {
-    const next = word.slice(cursor, cursor + maxLength);
-    chunks.push(cursor + maxLength < word.length ? `${next}-` : next);
-    cursor += maxLength;
+  let remaining = word;
+
+  while (remaining.length > maxLength) {
+    const safeLimit = Math.min(maxLength, Math.max(4, remaining.length - 3));
+    const vowelBreak = remaining
+      .slice(4, safeLimit)
+      .split("")
+      .map((char, index) => ({ char, index: index + 4 }))
+      .reverse()
+      .find(({ char }) => /[aiueoAIUEO]/.test(char));
+    const breakAt = vowelBreak ? vowelBreak.index + 1 : safeLimit;
+
+    chunks.push(`${remaining.slice(0, breakAt)}-`);
+    remaining = remaining.slice(breakAt);
   }
+  chunks.push(remaining);
   return chunks;
 };
 
-const wrapIndicatorLabel = (label: string, maxLineLength = 15, maxLines = 5) => {
+const wrapIndicatorLabel = (label: string, maxLineLength = 14, maxLines = 5) => {
   const words = label.split(/\s+/).flatMap((word) => splitLongWord(word));
   const lines: string[] = [];
 
@@ -159,6 +169,11 @@ const wrapIndicatorLabel = (label: string, maxLineLength = 15, maxLines = 5) => 
     }
 
     const current = lines[lines.length - 1] || "";
+    if (current.endsWith("-")) {
+      lines.push(word);
+      return;
+    }
+
     const next = current ? `${current} ${word}` : word;
     if (next.length <= maxLineLength) {
       lines[lines.length - 1] = next;
