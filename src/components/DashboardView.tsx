@@ -447,7 +447,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
           [SasaranProgram.TataKelola]: details.find((item) => item.category === SasaranProgram.TataKelola)?.score ?? 0,
         };
       }),
-        [data, trendYears]
+    [data, trendYears]
   );
 
   const modalChartData = useMemo(() => {
@@ -692,7 +692,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
                     tickLine={false}
                   />
                   <YAxis tick={{ fontSize: 11, fill: "#63756b" }} axisLine={false} tickLine={false}>
-                    <Label value="Jumlah / Persentase" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
+                    <Label value="Jumlah" angle={-90} position="insideLeft" fill="#5a6c62" fontSize={12} />
                   </YAxis>
                   <Tooltip content={<TargetRealizationTooltip />} />
                   <Legend verticalAlign="top" height={32} />
