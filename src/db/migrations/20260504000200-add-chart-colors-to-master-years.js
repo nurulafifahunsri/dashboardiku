@@ -1,5 +1,4 @@
 'use strict';
-const { v4: uuidv4 } = require('uuid');
 
 const colorsByYear = {
   '2025': {
@@ -64,24 +63,30 @@ const colorsByYear = {
   },
 };
 
+/** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface) {
-    const now = new Date();
-    const rows = ['2025', '2026', '2027', '2028', '2029', '2030'].map((year, index) => ({
-      id: uuidv4(),
-      year,
-      label: `Tahun ${year}`,
-      is_active: true,
-      sort_order: index + 1,
-      chart_colors: JSON.stringify(colorsByYear[year]),
-      createdAt: now,
-      updatedAt: now,
-    }));
+  async up(queryInterface, Sequelize) {
+    const table = await queryInterface.describeTable('master_years');
+    if (!table.chart_colors) {
+      await queryInterface.addColumn('master_years', 'chart_colors', {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      });
+    }
 
-    await queryInterface.bulkInsert('master_years', rows, {});
+    for (const [year, colors] of Object.entries(colorsByYear)) {
+      await queryInterface.bulkUpdate(
+        'master_years',
+        { chart_colors: JSON.stringify(colors), updatedAt: new Date() },
+        { year }
+      );
+    }
   },
 
   async down(queryInterface) {
-    await queryInterface.bulkDelete('master_years', null, {});
+    const table = await queryInterface.describeTable('master_years');
+    if (table.chart_colors) {
+      await queryInterface.removeColumn('master_years', 'chart_colors');
+    }
   },
 };

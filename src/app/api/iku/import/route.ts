@@ -1,46 +1,26 @@
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { IkuRecord } from '@/lib/db';
-import { randomUUID } from 'node:crypto';
 import { verifySession } from '@/lib/auth';
+import { ikuDataToDb, normalizeIkuCell, syncIkuYearValues, validateIkuPayload } from '@/lib/ikuRecordMapper';
 
-const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
+const yearlyDocumentFromRow = (row: any, year: string) => ({
+    documentUrl: normalizeIkuCell(row[`documentUrl_${year}`]) || normalizeIkuCell(row[`documentUrl${year}`]),
+    documentName: normalizeIkuCell(row[`documentName_${year}`]) || normalizeIkuCell(row[`documentName${year}`]),
+    documentType: normalizeIkuCell(row[`documentType_${year}`]) || normalizeIkuCell(row[`documentType${year}`]),
+});
 
-const normalizeCell = (value: any) => {
-    if (value === null || value === undefined) return undefined;
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        return trimmed.length ? trimmed : undefined;
-    }
-    return String(value);
-};
-
-const ikuDataToDb = (payload: any) => {
-    const data: any = {
-        id: payload.id || randomUUID(),
-        category: payload.category,
-        ikuNum: payload.ikuNum,
-        indicator: payload.indicator,
-        unit: payload.unit,
-        documentUrl: normalizeCell(payload.documentUrl) || null,
-        documentName: normalizeCell(payload.documentName) || null,
-        documentType: normalizeCell(payload.documentType) || null,
-    };
-
-    years.forEach((year) => {
-        data[`target${year}`] = normalizeCell(payload.targets?.[year]) || null;
-        data[`achievement${year}`] = normalizeCell(payload.achievements?.[year]) || null;
+const yearsFromRow = (row: any) => {
+    const years = new Set<string>();
+    Object.keys(row).forEach((key) => {
+        const match = key.match(/^(?:target|achievement|documentUrl|documentName|documentType)_?(\d{4})$/);
+        if (match) years.add(match[1]);
     });
-
-    return data;
+    return Array.from(years).sort((a, b) => Number(a) - Number(b));
 };
 
-const validatePayload = (payload: any) => {
-    if (!payload?.category || !payload?.ikuNum || !payload?.indicator || !payload?.unit) {
-        return 'Field wajib: category, ikuNum, indicator, unit';
-    }
-    return null;
-};
+const recordFromYears = (row: any, years: string[], prefix: string) =>
+    Object.fromEntries(years.map((year) => [year, normalizeIkuCell(row[`${prefix}_${year}`]) || normalizeIkuCell(row[`${prefix}${year}`])]));
 
 export async function POST(req: Request) {
     const session = await verifySession();
@@ -66,34 +46,22 @@ export async function POST(req: Request) {
         let imported = 0;
 
         for (const row of rows) {
+            const years = yearsFromRow(row);
             const payload = {
-                id: normalizeCell(row.id),
-                category: normalizeCell(row.category),
-                ikuNum: normalizeCell(row.ikuNum),
-                indicator: normalizeCell(row.indicator),
-                unit: normalizeCell(row.unit),
-                documentUrl: normalizeCell(row.documentUrl),
-                documentName: normalizeCell(row.documentName),
-                documentType: normalizeCell(row.documentType),
-                targets: {
-                    '2025': normalizeCell(row.target_2025),
-                    '2026': normalizeCell(row.target_2026),
-                    '2027': normalizeCell(row.target_2027),
-                    '2028': normalizeCell(row.target_2028),
-                    '2029': normalizeCell(row.target_2029),
-                    '2030': normalizeCell(row.target_2030),
-                },
-                achievements: {
-                    '2025': normalizeCell(row.achievement_2025),
-                    '2026': normalizeCell(row.achievement_2026),
-                    '2027': normalizeCell(row.achievement_2027),
-                    '2028': normalizeCell(row.achievement_2028),
-                    '2029': normalizeCell(row.achievement_2029),
-                    '2030': normalizeCell(row.achievement_2030),
-                },
+                id: normalizeIkuCell(row.id),
+                category: normalizeIkuCell(row.category),
+                ikuNum: normalizeIkuCell(row.ikuNum),
+                indicator: normalizeIkuCell(row.indicator),
+                unit: normalizeIkuCell(row.unit),
+                documentUrl: normalizeIkuCell(row.documentUrl),
+                documentName: normalizeIkuCell(row.documentName),
+                documentType: normalizeIkuCell(row.documentType),
+                documents: Object.fromEntries(years.map((year) => [year, yearlyDocumentFromRow(row, year)])),
+                targets: recordFromYears(row, years, 'target'),
+                achievements: recordFromYears(row, years, 'achievement'),
             };
 
-            const error = validatePayload(payload);
+            const error = validateIkuPayload(payload);
             if (error) continue;
 
             const dbPayload = ikuDataToDb(payload);
@@ -101,8 +69,10 @@ export async function POST(req: Request) {
 
             if (existing) {
                 await existing.update(dbPayload);
+                await syncIkuYearValues(dbPayload.id, payload);
             } else {
-                await IkuRecord.create(dbPayload);
+                const created = await IkuRecord.create(dbPayload);
+                await syncIkuYearValues(created.getDataValue('id') as string, payload);
             }
             imported += 1;
         }

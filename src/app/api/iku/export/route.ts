@@ -1,67 +1,44 @@
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { IkuRecord } from '@/lib/db';
+import { IkuRecord, MasterYear } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
+import { fetchIkuYearValues, rowToIkuData } from '@/lib/ikuRecordMapper';
+import { IKUData, Year } from '@/types';
 
-const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
-
-const normalizeCell = (value: any) => {
-    if (value === null || value === undefined) return undefined;
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        return trimmed.length ? trimmed : undefined;
-    }
-    return String(value);
-};
-
-const rowToIkuData = (row: any) => {
-    const targets: Record<string, string> = {};
-    const achievements: Record<string, string> = {};
-
-    years.forEach((year) => {
-        const target = normalizeCell(row[`target${year}`]);
-        const achievement = normalizeCell(row[`achievement${year}`]);
-        if (target !== undefined) targets[year] = target;
-        if (achievement !== undefined) achievements[year] = achievement;
+const collectExportYears = (data: IKUData[], masterYears: Year[]) => {
+    const years = new Set(masterYears);
+    data.forEach((item) => {
+        Object.keys(item.targets || {}).forEach((year) => years.add(year));
+        Object.keys(item.achievements || {}).forEach((year) => years.add(year));
+        Object.keys(item.documents || {}).forEach((year) => years.add(year));
     });
-
-    return {
-        id: row.id,
-        category: row.category,
-        ikuNum: row.ikuNum,
-        indicator: row.indicator,
-        unit: row.unit,
-        targets,
-        achievements,
-        documentUrl: normalizeCell(row.documentUrl),
-        documentName: normalizeCell(row.documentName),
-        documentType: normalizeCell(row.documentType),
-    };
+    return Array.from(years).sort((a, b) => Number(a) - Number(b));
 };
 
-const excelRowsFromIku = (data: any[]) => {
-    return data.map((item) => ({
-        id: item.id,
-        category: item.category,
-        ikuNum: item.ikuNum,
-        indicator: item.indicator,
-        unit: item.unit,
-        documentUrl: item.documentUrl ?? '',
-        documentName: item.documentName ?? '',
-        documentType: item.documentType ?? '',
-        target_2025: item.targets?.['2025'] ?? '',
-        target_2026: item.targets?.['2026'] ?? '',
-        target_2027: item.targets?.['2027'] ?? '',
-        target_2028: item.targets?.['2028'] ?? '',
-        target_2029: item.targets?.['2029'] ?? '',
-        target_2030: item.targets?.['2030'] ?? '',
-        achievement_2025: item.achievements?.['2025'] ?? '',
-        achievement_2026: item.achievements?.['2026'] ?? '',
-        achievement_2027: item.achievements?.['2027'] ?? '',
-        achievement_2028: item.achievements?.['2028'] ?? '',
-        achievement_2029: item.achievements?.['2029'] ?? '',
-        achievement_2030: item.achievements?.['2030'] ?? '',
-    }));
+const excelRowsFromIku = (data: IKUData[], years: Year[]) => {
+    return data.map((item) => {
+        const row: Record<string, string> = {
+            id: item.id,
+            category: item.category,
+            ikuNum: item.ikuNum,
+            indicator: item.indicator,
+            unit: item.unit,
+            documentUrl: item.documentUrl ?? '',
+            documentName: item.documentName ?? '',
+            documentType: item.documentType ?? '',
+        };
+
+        years.forEach((year) => {
+            const document = item.documents?.[year] || {};
+            row[`documentUrl_${year}`] = document.documentUrl ?? '';
+            row[`documentName_${year}`] = document.documentName ?? '';
+            row[`documentType_${year}`] = document.documentType ?? '';
+            row[`target_${year}`] = String(item.targets?.[year] ?? '');
+            row[`achievement_${year}`] = String(item.achievements?.[year] ?? '');
+        });
+
+        return row;
+    });
 };
 
 export async function GET() {
@@ -72,10 +49,14 @@ export async function GET() {
 
     try {
         const rows = await IkuRecord.findAll({ order: [['createdAt', 'ASC']] });
-        const data = rows.map((row) => rowToIkuData(row.get({ plain: true })));
+        const plainRows = rows.map((row) => row.get({ plain: true }) as any);
+        const valuesByRecord = await fetchIkuYearValues(plainRows.map((row) => row.id));
+        const data = plainRows.map((row) => rowToIkuData(row, valuesByRecord.get(row.id) || []));
+        const masterYears = await MasterYear.findAll({ order: [['sort_order', 'ASC'], ['year', 'ASC']] });
+        const exportYears = collectExportYears(data, masterYears.map((row) => String(row.getDataValue('year'))));
 
         const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(excelRowsFromIku(data));
+        const worksheet = XLSX.utils.json_to_sheet(excelRowsFromIku(data, exportYears));
         XLSX.utils.book_append_sheet(workbook, worksheet, 'IKU Fakultas-2');
 
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });

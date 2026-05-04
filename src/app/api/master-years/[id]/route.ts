@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { MasterYear } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
-import { SUPPORTED_YEARS } from '@/types';
+import { generateChartColors, parseChartColors } from '@/lib/chartColors';
+
+const isValidYear = (year: unknown) => typeof year === 'string' && /^\d{4}$/.test(year);
 
 const mapRow = (row: any) => ({
   id: row.id,
@@ -9,6 +11,7 @@ const mapRow = (row: any) => ({
   label: row.label,
   isActive: row.is_active,
   sortOrder: row.sort_order,
+  chartColors: parseChartColors(row.chart_colors, row.year),
 });
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +29,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Tahun tidak ditemukan' }, { status: 404 });
     }
 
-    if (body.year && !SUPPORTED_YEARS.includes(body.year)) {
+    if (body.year && !isValidYear(body.year)) {
       return NextResponse.json({ error: 'Tahun tidak valid' }, { status: 400 });
     }
 
@@ -37,11 +40,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
+    const nextYear = body.year ?? row.getDataValue('year');
+
     await row.update({
       year: body.year ?? row.getDataValue('year'),
       label: body.label ?? row.getDataValue('label'),
       is_active: typeof body.isActive === 'boolean' ? body.isActive : row.getDataValue('is_active'),
       sort_order: Number.isFinite(body.sortOrder) ? Number(body.sortOrder) : row.getDataValue('sort_order'),
+      chart_colors:
+        body.year && body.year !== row.getDataValue('year')
+          ? JSON.stringify(generateChartColors(body.year))
+          : row.getDataValue('chart_colors') || JSON.stringify(generateChartColors(nextYear)),
     } as any);
 
     return NextResponse.json(mapRow(row.get({ plain: true })));

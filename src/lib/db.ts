@@ -21,21 +21,22 @@ export interface IkuRecordAttributes {
     ikuNum: string;
     indicator: string;
     unit: string;
-    target2025?: string;
-    target2026?: string;
-    target2027?: string;
-    target2028?: string;
-    target2029?: string;
-    target2030?: string;
-    achievement2025?: string;
-    achievement2026?: string;
-    achievement2027?: string;
-    achievement2028?: string;
-    achievement2029?: string;
-    achievement2030?: string;
-    documentUrl?: string;
-    documentName?: string;
-    documentType?: string;
+    documentUrl?: string | null;
+    documentName?: string | null;
+    documentType?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+export interface IkuRecordYearValueAttributes {
+    id?: string;
+    iku_record_id: string;
+    year: string;
+    target_value?: string | null;
+    achievement_value?: string | null;
+    documentUrl?: string | null;
+    documentName?: string | null;
+    documentType?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -57,10 +58,11 @@ export interface UserAttributes {
 
 export interface MasterYearAttributes {
     id?: string;
-    year: '2025' | '2026' | '2027' | '2028' | '2029' | '2030';
+    year: string;
     label: string;
     is_active: boolean;
     sort_order: number;
+    chart_colors?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -73,18 +75,6 @@ export const IkuRecord = sequelize.define<Model<IkuRecordAttributes>>(
         ikuNum: { type: DataTypes.STRING(32), allowNull: false },
         indicator: { type: DataTypes.TEXT, allowNull: false },
         unit: { type: DataTypes.STRING(64), allowNull: false },
-        target2025: { type: DataTypes.STRING(64), allowNull: true },
-        target2026: { type: DataTypes.STRING(64), allowNull: true },
-        target2027: { type: DataTypes.STRING(64), allowNull: true },
-        target2028: { type: DataTypes.STRING(64), allowNull: true },
-        target2029: { type: DataTypes.STRING(64), allowNull: true },
-        target2030: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2025: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2026: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2027: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2028: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2029: { type: DataTypes.STRING(64), allowNull: true },
-        achievement2030: { type: DataTypes.STRING(64), allowNull: true },
         documentUrl: { type: DataTypes.STRING(512), allowNull: true },
         documentName: { type: DataTypes.STRING(255), allowNull: true },
         documentType: { type: DataTypes.STRING(128), allowNull: true },
@@ -92,6 +82,25 @@ export const IkuRecord = sequelize.define<Model<IkuRecordAttributes>>(
     {
         tableName: 'iku_records',
         timestamps: true,
+    }
+);
+
+export const IkuRecordYearValue = sequelize.define<Model<IkuRecordYearValueAttributes>>(
+    'IkuRecordYearValue',
+    {
+        id: { type: DataTypes.STRING(64), primaryKey: true },
+        iku_record_id: { type: DataTypes.STRING(64), allowNull: false },
+        year: { type: DataTypes.STRING(16), allowNull: false },
+        target_value: { type: DataTypes.STRING(64), allowNull: true },
+        achievement_value: { type: DataTypes.STRING(64), allowNull: true },
+        documentUrl: { type: DataTypes.STRING(512), allowNull: true },
+        documentName: { type: DataTypes.STRING(255), allowNull: true },
+        documentType: { type: DataTypes.STRING(128), allowNull: true },
+    },
+    {
+        tableName: 'iku_record_year_values',
+        timestamps: true,
+        indexes: [{ unique: true, fields: ['iku_record_id', 'year'] }],
     }
 );
 
@@ -156,7 +165,7 @@ export const MasterYear = sequelize.define<Model<MasterYearAttributes>>('MasterY
         primaryKey: true,
     },
     year: {
-        type: DataTypes.ENUM('2025', '2026', '2027', '2028', '2029', '2030'),
+        type: DataTypes.STRING(16),
         allowNull: false,
         unique: true,
     },
@@ -173,6 +182,10 @@ export const MasterYear = sequelize.define<Model<MasterYearAttributes>>('MasterY
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
+    },
+    chart_colors: {
+        type: DataTypes.TEXT,
+        allowNull: true,
     }
 }, {
     tableName: 'master_years',

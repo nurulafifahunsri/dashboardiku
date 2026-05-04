@@ -1,69 +1,7 @@
 import { NextResponse } from 'next/server';
 import { IkuRecord } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
-
-const years = ['2025', '2026', '2027', '2028', '2029', '2030'];
-
-const normalizeCell = (value: any) => {
-    if (value === null || value === undefined) return undefined;
-    if (typeof value === 'string') {
-        const trimmed = value.trim();
-        return trimmed.length ? trimmed : undefined;
-    }
-    return String(value);
-};
-
-const rowToIkuData = (row: any) => {
-    const targets: Record<string, string> = {};
-    const achievements: Record<string, string> = {};
-
-    years.forEach((year) => {
-        const target = normalizeCell(row[`target${year}`]);
-        const achievement = normalizeCell(row[`achievement${year}`]);
-        if (target !== undefined) targets[year] = target;
-        if (achievement !== undefined) achievements[year] = achievement;
-    });
-
-    return {
-        id: row.id,
-        category: row.category,
-        ikuNum: row.ikuNum,
-        indicator: row.indicator,
-        unit: row.unit,
-        targets,
-        achievements,
-        documentUrl: normalizeCell(row.documentUrl),
-        documentName: normalizeCell(row.documentName),
-        documentType: normalizeCell(row.documentType),
-    };
-};
-
-const ikuDataToDb = (payload: any) => {
-    const data: any = {
-        id: payload.id,
-        category: payload.category,
-        ikuNum: payload.ikuNum,
-        indicator: payload.indicator,
-        unit: payload.unit,
-        documentUrl: normalizeCell(payload.documentUrl) || null,
-        documentName: normalizeCell(payload.documentName) || null,
-        documentType: normalizeCell(payload.documentType) || null,
-    };
-
-    years.forEach((year) => {
-        data[`target${year}`] = normalizeCell(payload.targets?.[year]) || null;
-        data[`achievement${year}`] = normalizeCell(payload.achievements?.[year]) || null;
-    });
-
-    return data;
-};
-
-const validatePayload = (payload: any) => {
-    if (!payload?.category || !payload?.ikuNum || !payload?.indicator || !payload?.unit) {
-        return 'Field wajib: category, ikuNum, indicator, unit';
-    }
-    return null;
-};
+import { fetchIkuYearValues, ikuDataToDb, rowToIkuData, syncIkuYearValues, validateIkuPayload } from '@/lib/ikuRecordMapper';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await verifySession();
@@ -73,7 +11,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     try {
         const body = await req.json();
-        const error = validatePayload(body);
+        const error = validateIkuPayload(body);
         if (error) return NextResponse.json({ message: error }, { status: 400 });
 
         const { id } = await params;
@@ -82,7 +20,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         const payload = ikuDataToDb({ ...body, id });
         await found.update(payload);
-        return NextResponse.json(rowToIkuData(found.get({ plain: true })));
+        await syncIkuYearValues(id, body);
+        const yearValues = await fetchIkuYearValues([id]);
+        return NextResponse.json(rowToIkuData(found.get({ plain: true }), yearValues.get(id) || []));
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }

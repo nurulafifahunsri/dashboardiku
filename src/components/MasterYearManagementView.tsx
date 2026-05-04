@@ -1,6 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { MasterYear, SUPPORTED_YEARS } from "@/types";
+import { MasterYear } from "@/types";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import ModalShell from "./ModalShell";
 
@@ -19,10 +19,10 @@ interface FormState {
 
 const defaultForm: FormState = {
   id: "",
-  year: SUPPORTED_YEARS[0],
+  year: String(new Date().getFullYear()),
   label: "",
   isActive: true,
-  sortOrder: Number(SUPPORTED_YEARS[0]),
+  sortOrder: new Date().getFullYear(),
 };
 
 const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
@@ -102,7 +102,7 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
     setError("");
     setMessage("");
     const errors: Record<string, string> = {};
-    if (!form.year) errors.year = "Tahun wajib dipilih.";
+    if (!/^\d{4}$/.test(form.year)) errors.year = "Tahun wajib berupa 4 digit.";
     if (!isEditing && usedYears.has(form.year)) errors.year = "Tahun ini sudah terdaftar.";
     if (!Number.isFinite(Number(form.sortOrder))) errors.sortOrder = "Urutan wajib berupa angka.";
     if (form.label.length > 120) errors.label = "Label maksimal 120 karakter.";
@@ -227,27 +227,19 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Tahun</span>
-              <select
+              <input
+                type="number"
+                inputMode="numeric"
                 value={form.year}
                 onChange={(e) => {
-                  const selected = e.target.value as MasterYear["year"];
+                  const selected = e.target.value;
                   setForm((prev) => ({ ...prev, year: selected, sortOrder: Number(selected) }));
                   setFormErrors((prev) => ({ ...prev, year: '' }));
                 }}
                 disabled={isEditing}
                 aria-invalid={Boolean(formErrors.year)}
                 className={fieldClass("year")}
-              >
-                {SUPPORTED_YEARS.map((year) => (
-                  <option
-                    key={year}
-                    value={year}
-                    disabled={!isEditing && usedYears.has(year)}
-                  >
-                    {year}
-                  </option>
-                ))}
-              </select>
+              />
               {fieldError("year")}
             </label>
 

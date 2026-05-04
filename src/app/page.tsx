@@ -138,6 +138,7 @@ function DashboardPage() {
   const fallbackYear = activeYears[0]?.year || "2026";
   const isYearValid = Boolean(yearParam && activeYears.find((year) => year.year === yearParam));
   const selectedYear = (yearParam && activeYears.find((year) => year.year === yearParam)?.year) || fallbackYear;
+  const selectedMasterYear = activeYears.find((item) => item.year === selectedYear);
 
   const currentMenuLabel = menuLabels[menu];
 
@@ -301,7 +302,7 @@ function DashboardPage() {
     }
 
     if (menu === "dashboard") {
-      return <DashboardView year={selectedYear as Year} data={ikuData} availableYears={activeYears.map((item) => item.year)} />;
+      return <DashboardView year={selectedYear as Year} data={ikuData} availableYears={activeYears.map((item) => item.year)} chartColors={selectedMasterYear?.chartColors} />;
     }
 
     if (menu === "kontrak-kinerja") {
@@ -324,7 +325,7 @@ function DashboardPage() {
     }
 
     if (menu === "manajemen-data") {
-      return <IkuManagementView data={ikuData} onDataChanged={refreshIkuData} years={activeYears} />;
+      return <IkuManagementView data={ikuData} onDataChanged={refreshIkuData} years={activeYears} year={selectedYear as Year} />;
     }
 
     if (menu === "manajemen-user") {
@@ -355,7 +356,7 @@ function DashboardPage() {
       return <ProfileSettingsView user={user!} onRefreshSession={checkSession} />;
     }
 
-    return <DashboardView year={selectedYear as Year} data={ikuData} availableYears={activeYears.map((item) => item.year)} />;
+    return <DashboardView year={selectedYear as Year} data={ikuData} availableYears={activeYears.map((item) => item.year)} chartColors={selectedMasterYear?.chartColors} />;
   };
 
   const isAuthPage = menu === "login" || menu === "lupa-password" || menu === "reset-password";

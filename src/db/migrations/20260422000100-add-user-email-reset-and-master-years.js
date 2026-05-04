@@ -36,7 +36,7 @@ module.exports = {
         defaultValue: Sequelize.UUIDV4,
       },
       year: {
-        type: Sequelize.ENUM('2025', '2026', '2027', '2028', '2029', '2030'),
+        type: Sequelize.STRING(16),
         allowNull: false,
         unique: true,
       },

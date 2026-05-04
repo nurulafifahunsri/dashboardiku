@@ -1,4 +1,4 @@
-import { IKUData } from '../types';
+import { IKUData, IKUDocument } from '../types';
 
 const API_BASE = '/api/iku';
 
@@ -57,7 +57,7 @@ export const ikuApi = {
     return handleResponse<{ message: string; imported: number }>(res);
   },
 
-  async uploadDocument(file: File): Promise<Pick<IKUData, 'documentUrl' | 'documentName' | 'documentType'>> {
+  async uploadDocument(file: File): Promise<IKUDocument> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -66,7 +66,7 @@ export const ikuApi = {
       body: formData,
     });
 
-    return handleResponse<Pick<IKUData, 'documentUrl' | 'documentName' | 'documentType'>>(res);
+    return handleResponse<IKUDocument>(res);
   },
 
   exportExcel(): void {

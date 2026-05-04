@@ -18,22 +18,17 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
 } from "recharts";
-import { IKUData, Year, SasaranProgram } from "../types";
+import { ChartColorConfig, IKUData, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle, X } from "lucide-react";
 import ModalShell from "./ModalShell";
+import { defaultChartColors } from "@/lib/chartColors";
 
 interface Props {
   year: Year;
   data: IKUData[];
   availableYears: Year[];
+  chartColors?: ChartColorConfig;
 }
-
-const categoryColors: Record<SasaranProgram, string> = {
-  [SasaranProgram.Talenta]: "#17624a",
-  [SasaranProgram.Inovasi]: "#ce7b34",
-  [SasaranProgram.Kontribusi]: "#197a9a",
-  [SasaranProgram.TataKelola]: "#b23b6b",
-};
 
 const MIN_RADAR_IKU_COUNT = 3;
 
@@ -51,6 +46,8 @@ type CategoryTrendDetail = {
   total: number;
   score: number;
 };
+
+type SummaryKey = "total" | "achieved" | "rate" | "year";
 
 const formatDisplayValue = (value: unknown) => {
   if (value === undefined || value === null || value === "") return "-";
@@ -113,6 +110,30 @@ const calculateAchievementRate = (items: IKUData[], targetYear: Year): number =>
   if (!yearItems.length) return 0;
   const achieved = yearItems.filter((item) => compareAchievement(item, targetYear) === true).length;
   return Math.round((achieved / yearItems.length) * 100);
+};
+
+const achievementStatusMeta = (status: boolean | null) => {
+  if (status === true) {
+    return {
+      label: "Tercapai",
+      className: "border-emerald-200 bg-emerald-100 text-emerald-700",
+    };
+  }
+  if (status === false) {
+    return {
+      label: "Belum Tercapai",
+      className: "border-rose-200 bg-rose-100 text-rose-700",
+    };
+  }
+  return {
+    label: "Belum Lengkap",
+    className: "border-slate-200 bg-slate-100 text-slate-600",
+  };
+};
+
+const ikuOrder = (ikuNum: string) => {
+  const parsed = Number(ikuNum.replace(/\D/g, ""));
+  return Number.isFinite(parsed) ? parsed : 999;
 };
 
 const IndicatorListTooltip = ({ active, payload, year }: any) => {
@@ -187,30 +208,53 @@ const RadarIndicatorTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
+const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColors = defaultChartColors }) => {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
+  const [isAchievementModalOpen, setIsAchievementModalOpen] = useState(false);
+  const categoryColors = chartColors.categories;
 
-  const yearIndicators = data.filter((item) => hasYearEntry(item, year));
+  const yearIndicators = useMemo(() => data.filter((item) => hasYearEntry(item, year)), [data, year]);
   const achievedCount = yearIndicators.filter((item) => compareAchievement(item, year) === true).length;
   const performanceRate = yearIndicators.length > 0 ? Math.round((achievedCount / yearIndicators.length) * 100) : 0;
   const uniqueIkuCount = new Set(data.map((item) => item.ikuNum)).size;
 
-  const summary = [
-    { title: "Total IKU", value: String(uniqueIkuCount), icon: Trophy, tone: "bg-emerald-100 text-emerald-800" },
+  const summary: Array<{ key: SummaryKey; title: string; value: string; icon: React.ElementType; tone: string }> = [
+    { key: "total", title: "Total IKU", value: String(uniqueIkuCount), icon: Trophy, tone: "bg-emerald-100 text-emerald-800" },
     {
+      key: "achieved",
       title: `Indikator Tercapai (${year})`,
       value: yearIndicators.length > 0 ? `${achievedCount}/${yearIndicators.length}` : "Tidak ada data",
       icon: CheckCircle2,
       tone: achievedCount < yearIndicators.length / 2 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700",
     },
     {
+      key: "rate",
       title: "Tingkat Keberhasilan",
       value: yearIndicators.length > 0 ? `${performanceRate}%` : "N/A",
       icon: TrendingUp,
       tone: performanceRate < 50 ? "bg-rose-100 text-rose-700" : "bg-sky-100 text-sky-700",
     },
-    { title: "Tahun Aktif", value: year, icon: BarChart3, tone: "bg-amber-100 text-amber-700" },
+    { key: "year", title: "Tahun Aktif", value: year, icon: BarChart3, tone: "bg-amber-100 text-amber-700" },
   ];
+
+  const achievementRows = useMemo(
+    () =>
+      yearIndicators
+        .map((item) => ({
+          item,
+          status: compareAchievement(item, year),
+          target: formatMetricValue(item.targets[year], item.unit),
+          realization: formatMetricValue(item.achievements?.[year], item.unit),
+        }))
+        .sort((a, b) => {
+          const categoryDiff = String(a.item.category).localeCompare(String(b.item.category), "id");
+          if (categoryDiff !== 0) return categoryDiff;
+          const ikuDiff = ikuOrder(a.item.ikuNum) - ikuOrder(b.item.ikuNum);
+          if (ikuDiff !== 0) return ikuDiff;
+          return String(a.item.indicator).localeCompare(String(b.item.indicator), "id");
+        }),
+    [yearIndicators, year]
+  );
 
   const distributionByCategory = useMemo(() => {
     return Object.values(SasaranProgram).map((category) => {
@@ -241,7 +285,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
         rows,
       };
     });
-  }, [data, year]);
+  }, [categoryColors, data, year]);
 
   const trendYears = useMemo(() => {
     const selectedIndex = availableYears.indexOf(year);
@@ -280,7 +324,7 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
           [SasaranProgram.TataKelola]: details.find((item) => item.category === SasaranProgram.TataKelola)?.score ?? 0,
         };
       }),
-    [data, trendYears]
+        [data, trendYears]
   );
 
   const modalChartData = useMemo(() => {
@@ -312,17 +356,39 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
       </header>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {summary.map((item) => (
-          <article key={item.title} className="surface-card metric-card stagger-in rounded-2xl p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">{item.title}</p>
-              <span className={`rounded-xl p-2 ${item.tone}`}>
-                <item.icon size={18} />
-              </span>
-            </div>
-            <h3 className="display-font mt-2 text-3xl font-bold text-[var(--ink)]">{item.value}</h3>
-          </article>
-        ))}
+        {summary.map((item) => {
+          const content = (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">{item.title}</p>
+                <span className={`rounded-xl p-2 ${item.tone}`}>
+                  <item.icon size={18} />
+                </span>
+              </div>
+              <h3 className="display-font mt-2 text-3xl font-bold text-[var(--ink)]">{item.value}</h3>
+            </>
+          );
+
+          if (item.key === "achieved") {
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setIsAchievementModalOpen(true)}
+                className="surface-card metric-card stagger-in rounded-2xl p-5 text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                aria-haspopup="dialog"
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <article key={item.key} className="surface-card metric-card stagger-in rounded-2xl p-5">
+              {content}
+            </article>
+          );
+        })}
       </section>
 
       <section className="space-y-4">
@@ -514,11 +580,80 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears }) => {
                   </YAxis>
                   <Tooltip content={<TargetRealizationTooltip />} />
                   <Legend verticalAlign="top" height={32} />
-                  <Bar dataKey="target" name="Target" fill="#ce7b34" radius={[8, 8, 0, 0]} minPointSize={2} />
-                  <Bar dataKey="realization" name="Realisasi" fill="#17624a" radius={[8, 8, 0, 0]} minPointSize={2} />
+                  <Bar dataKey="target" name="Target" fill={chartColors.target} radius={[8, 8, 0, 0]} minPointSize={2} />
+                  <Bar dataKey="realization" name="Realisasi" fill={chartColors.realization} radius={[8, 8, 0, 0]} minPointSize={2} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </ModalShell>
+      )}
+
+      {isAchievementModalOpen && (
+        <ModalShell
+          onClose={() => setIsAchievementModalOpen(false)}
+          labelledBy="achievement-detail-title"
+          className="surface-card max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl"
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <div>
+              <h3 id="achievement-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
+                Indikator Tercapai {year}
+              </h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">{yearIndicators.length ? `${achievedCount}/${yearIndicators.length} indikator tercapai` : "Tidak ada data indikator"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAchievementModalOpen(false)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
+              aria-label="Tutup modal"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="max-h-[calc(92vh-86px)] overflow-auto p-5 sm:p-6">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
+                  <th className="px-3 py-3">IKU</th>
+                  <th className="px-3 py-3">Kategori</th>
+                  <th className="px-3 py-3">Indikator</th>
+                  <th className="px-3 py-3">Target</th>
+                  <th className="px-3 py-3">Realisasi</th>
+                  <th className="px-3 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {achievementRows.map(({ item, status, target, realization }) => {
+                  const meta = achievementStatusMeta(status);
+                  return (
+                    <tr key={item.id} className="border-b border-[var(--border)] last:border-none">
+                      <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">{item.ikuNum}</td>
+                      <td className="px-3 py-3 align-top text-[var(--muted)]">{item.category}</td>
+                      <td className="px-3 py-3 align-top font-semibold leading-snug text-[var(--ink)]">{item.indicator}</td>
+                      <td className="px-3 py-3 align-top font-semibold text-indigo-700">{target}</td>
+                      <td className="px-3 py-3 align-top font-semibold text-emerald-700">{realization}</td>
+                      <td className="px-3 py-3 align-top">
+                        <div className="flex justify-center">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${meta.className}`}>
+                            {status === true ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                            {meta.label}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {achievementRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-[var(--muted)]">
+                      Tidak ada indikator pada tahun {year}.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </ModalShell>
       )}

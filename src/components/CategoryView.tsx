@@ -18,6 +18,7 @@ import {
   Table2
 } from 'lucide-react';
 import DocumentPreview from './DocumentPreview';
+import { getDocumentForYear } from '@/lib/ikuYearlyDocuments';
 
 interface Props {
   category: SasaranProgram;
@@ -93,8 +94,8 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
     return <Building className="text-indigo-700" size={18} />;
   };
 
-  const getStatusInfo = (achieved: string | number | undefined, target: string | number) => {
-    if (achieved === undefined) {
+  const getStatusInfo = (achieved: string | number | undefined, target: string | number | undefined) => {
+    if (achieved === undefined || target === undefined) {
       return {
         label: 'Tidak Ada Data',
         color: 'text-slate-500 bg-slate-100 border-slate-200',
@@ -268,6 +269,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                 const targetValue = item.targets[year];
                 const achievementValue = item.achievements ? item.achievements[year] : undefined;
                 const info = getStatusInfo(achievementValue, targetValue);
+                const document = getDocumentForYear(item, year);
 
                 return (
                   <tr key={item.id} className="border-b border-[var(--border)] last:border-none hover:bg-[var(--surface-2)]">
@@ -282,7 +284,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
                     <td className="px-5 py-4 align-top text-sm font-bold text-emerald-700">{formatValue(achievementValue)}</td>
                     <td className="px-5 py-4 align-top text-sm text-[var(--ink)]">{item.unit}</td>
                     <td className="px-5 py-4 align-top">
-                      <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} emptyLabel="-" />
+                      <DocumentPreview url={document.documentUrl} name={document.documentName} type={document.documentType} emptyLabel="-" />
                     </td>
                     <td className="px-5 py-4 align-top">
                       <div className="flex justify-center">
@@ -338,6 +340,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
           const targetValue = item.targets[year];
           const achievementValue = item.achievements ? item.achievements[year] : undefined;
           const info = getStatusInfo(achievementValue, targetValue);
+          const document = getDocumentForYear(item, year);
           const percentage =
             achievementValue !== undefined &&
               !isNaN(parseFloat(achievementValue as string)) &&
@@ -371,7 +374,7 @@ const CategoryView: React.FC<Props> = ({ category, data, year }) => {
 
               <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Dokumen</p>
-                <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} />
+                <DocumentPreview url={document.documentUrl} name={document.documentName} type={document.documentType} />
               </div>
 
               <div className="mt-4">

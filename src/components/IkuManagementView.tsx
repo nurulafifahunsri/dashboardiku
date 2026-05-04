@@ -1,15 +1,17 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { IKUData, MasterYear, SasaranProgram, Year } from "../types";
+import { IKUData, IKUDocument, MasterYear, SasaranProgram, Year } from "../types";
 import { ikuApi } from "../services/ikuApi";
 import { ArrowDownAZ, ArrowUpAZ, Plus, Search, UploadCloud, X } from "lucide-react";
 import DocumentPreview from "./DocumentPreview";
 import ModalShell from "./ModalShell";
+import { getDocumentForYear } from "@/lib/ikuYearlyDocuments";
 
 interface Props {
   data: IKUData[];
   onDataChanged: () => Promise<void>;
   years: MasterYear[];
+  year: Year;
 }
 
 type SortKey = "ikuNum" | "category" | "indicator" | "unit";
@@ -26,22 +28,9 @@ const emptyForm = (): IKUData => ({
   ikuNum: "IKU 1",
   indicator: "",
   unit: "%",
-  targets: {
-    "2025": "",
-    "2026": "",
-    "2027": "",
-    "2028": "",
-    "2029": "",
-    "2030": "",
-  },
-  achievements: {
-    "2025": "",
-    "2026": "",
-    "2027": "",
-    "2028": "",
-    "2029": "",
-    "2030": "",
-  },
+  targets: {},
+  achievements: {},
+  documents: {},
   documentUrl: "",
   documentName: "",
   documentType: "",
@@ -49,7 +38,7 @@ const emptyForm = (): IKUData => ({
 
 const toComparableValue = (value: unknown) => String(value || "").toLowerCase();
 
-const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
+const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }) => {
   const availableYears = useMemo(
     () =>
       years
@@ -59,7 +48,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
     [years]
   );
 
-  const currentYear = (availableYears[availableYears.length - 1] || "2026") as Year;
+  const currentYear = (availableYears.includes(year) ? year : availableYears[0] || "2026") as Year;
 
   const [form, setForm] = useState<IKUData>(emptyForm());
   const [isEditing, setIsEditing] = useState(false);
@@ -68,9 +57,9 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [documentPreviewUrl, setDocumentPreviewUrl] = useState("");
-  const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [documentFiles, setDocumentFiles] = useState<Partial<Record<Year, File>>>({});
+  const [documentPreviewUrls, setDocumentPreviewUrls] = useState<Partial<Record<Year, string>>>({});
+  const [documentInputKeys, setDocumentInputKeys] = useState<Record<Year, number>>({});
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("semua");
@@ -156,7 +145,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
   const fieldError = (key: string) =>
     formErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{formErrors[key]}</p> : null;
 
-  const validateForm = (payload: IKUData, file: File | null) => {
+  const validateForm = (payload: IKUData, files: Partial<Record<Year, File>>) => {
     const errors: FormErrors = {};
     if (!payload.category?.trim()) errors.category = "Kategori wajib dipilih.";
     if (!payload.ikuNum?.trim()) errors.ikuNum = "IKU wajib diisi.";
@@ -170,31 +159,62 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
       if (realization.length > 64) errors[`achievements.${year}`] = "Realisasi maksimal 64 karakter.";
     });
 
-    if (file) {
-      if (!allowedDocumentTypes.has(file.type) && !allowedDocumentExtensions.test(file.name)) errors.document = "Dokumen harus berupa PDF, gambar, atau CSV.";
-      if (file.size > maxDocumentSize) errors.document = "Ukuran dokumen maksimal 10MB.";
-    }
+    (Object.entries(files) as [Year, File][]).forEach(([documentYear, file]) => {
+      if (!allowedDocumentTypes.has(file.type) && !allowedDocumentExtensions.test(file.name)) errors[`documents.${documentYear}`] = "Dokumen harus berupa PDF, gambar, atau CSV.";
+      if (file.size > maxDocumentSize) errors[`documents.${documentYear}`] = "Ukuran dokumen maksimal 10MB.";
+    });
 
     return errors;
   };
 
-  const handleDocumentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const revokePreviewUrl = (url?: string) => {
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+  };
+
+  const handleDocumentChange = (documentYear: Year, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
-    if (documentPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(documentPreviewUrl);
-    setDocumentFile(file);
-    setDocumentPreviewUrl(file ? URL.createObjectURL(file) : "");
+    revokePreviewUrl(documentPreviewUrls[documentYear]);
+    setDocumentFiles((prev) => {
+      const next = { ...prev };
+      if (file) next[documentYear] = file;
+      else delete next[documentYear];
+      return next;
+    });
+    setDocumentPreviewUrls((prev) => {
+      const next = { ...prev };
+      if (file) next[documentYear] = URL.createObjectURL(file);
+      else delete next[documentYear];
+      return next;
+    });
     setFormErrors((prev) => {
       const next = { ...prev };
       delete next.document;
+      delete next[`documents.${documentYear}`];
       return next;
     });
   };
 
-  const clearSelectedDocument = () => {
-    if (documentPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(documentPreviewUrl);
-    setDocumentFile(null);
-    setDocumentPreviewUrl("");
-    setDocumentInputKey((prev) => prev + 1);
+  const clearSelectedDocument = (documentYear?: Year) => {
+    if (documentYear) {
+      revokePreviewUrl(documentPreviewUrls[documentYear]);
+      setDocumentFiles((prev) => {
+        const next = { ...prev };
+        delete next[documentYear];
+        return next;
+      });
+      setDocumentPreviewUrls((prev) => {
+        const next = { ...prev };
+        delete next[documentYear];
+        return next;
+      });
+      setDocumentInputKeys((prev) => ({ ...prev, [documentYear]: prev[documentYear] + 1 }));
+      return;
+    }
+
+    Object.values(documentPreviewUrls).forEach(revokePreviewUrl);
+    setDocumentFiles({});
+    setDocumentPreviewUrls({});
+    setDocumentInputKeys({});
   };
 
   const resetState = () => {
@@ -220,7 +240,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
     setError("");
     setMessage("");
 
-    const validationErrors = validateForm(form, documentFile);
+    const validationErrors = validateForm(form, documentFiles);
     if (Object.keys(validationErrors).length) {
       setFormErrors(validationErrors);
       return;
@@ -228,8 +248,14 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
 
     try {
       setLoading(true);
-      const uploadedDocument = documentFile ? await ikuApi.uploadDocument(documentFile) : {};
-      const payload = { ...form, ...uploadedDocument };
+      const uploadedDocuments: Partial<Record<Year, IKUDocument>> = { ...(form.documents || {}) };
+
+      for (const documentYear of availableYears) {
+        const file = documentFiles[documentYear];
+        if (file) uploadedDocuments[documentYear] = await ikuApi.uploadDocument(file);
+      }
+
+      const payload = { ...form, documents: uploadedDocuments };
 
       if (isEditing && form.id) {
         await ikuApi.update(form.id, payload);
@@ -256,6 +282,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
       ...item,
       targets: { ...emptyForm().targets, ...item.targets },
       achievements: { ...emptyForm().achievements, ...item.achievements },
+      documents: { ...item.documents },
     });
     setIsEditing(true);
     setIsFormOpen(true);
@@ -459,36 +486,51 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-white p-3 sm:p-4">
-            <p className="mb-3 text-sm font-bold text-[var(--ink)]">Dokumen Pendukung</p>
-            <label className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center ${formErrors.document ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-[var(--surface-2)]"}`}>
-              <UploadCloud size={24} className="mb-2 text-emerald-700" />
-              <span className="text-sm font-semibold text-[var(--ink)]">Unggah PDF, gambar, atau CSV</span>
-              <span className="mt-1 text-xs text-[var(--muted)]">Maksimal 10MB</span>
-              <input
-                key={documentInputKey}
-                type="file"
-                accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/csv,application/csv,application/vnd.ms-excel,.csv"
-                className="hidden"
-                onChange={handleDocumentChange}
-                aria-invalid={Boolean(formErrors.document)}
-              />
-            </label>
-            {fieldError("document")}
-            {(documentPreviewUrl || form.documentUrl) && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <DocumentPreview
-                  url={documentPreviewUrl || form.documentUrl}
-                  name={documentFile?.name || form.documentName}
-                  type={documentFile?.type || form.documentType}
-                />
-                {documentFile && (
-                  <button type="button" onClick={clearSelectedDocument} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
-                    <X size={13} />
-                    Batalkan file
-                  </button>
-                )}
-              </div>
-            )}
+            <p className="mb-3 text-sm font-bold text-[var(--ink)]">Dokumen Pendukung per Tahun</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {availableYears.map((documentYear) => {
+                const selectedFile = documentFiles[documentYear];
+                const previewUrl = documentPreviewUrls[documentYear];
+                const document = getDocumentForYear(form, documentYear);
+                const hasPreview = Boolean(previewUrl || document.documentUrl);
+
+                return (
+                  <div key={`document-${documentYear}`} className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{documentYear}</p>
+                      {selectedFile && (
+                        <button type="button" onClick={() => clearSelectedDocument(documentYear)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700">
+                          <X size={12} />
+                          Batalkan
+                        </button>
+                      )}
+                    </div>
+                    <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-center ${formErrors[`documents.${documentYear}`] ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-white"}`}>
+                      <UploadCloud size={18} className="text-emerald-700" />
+                      <span className="text-xs font-semibold text-[var(--ink)]">Unggah dokumen</span>
+                      <input
+                        key={documentInputKeys[documentYear] ?? 0}
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/csv,application/csv,application/vnd.ms-excel,.csv"
+                        className="hidden"
+                        onChange={(event) => handleDocumentChange(documentYear, event)}
+                        aria-invalid={Boolean(formErrors[`documents.${documentYear}`])}
+                      />
+                    </label>
+                    {fieldError(`documents.${documentYear}`)}
+                    {hasPreview && (
+                      <div className="mt-2">
+                        <DocumentPreview
+                          url={previewUrl || document.documentUrl}
+                          name={selectedFile?.name || document.documentName}
+                          type={selectedFile?.type || document.documentType}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -610,34 +652,38 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years }) => {
                 </th>
                 <th className="px-3 py-2 text-xs">Target {currentYear}</th>
                 <th className="px-3 py-2 text-xs">Realisasi {currentYear}</th>
-                <th className="px-3 py-2 text-xs">Dokumen</th>
+                <th className="px-3 py-2 text-xs">Dokumen {currentYear}</th>
                 <th className="px-3 py-2 text-xs">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {pagedRows.map((item) => (
-                <tr key={item.id} className="border-b border-[var(--border)]">
-                  <td className="px-3 py-2 text-sm font-semibold">{item.ikuNum}</td>
-                  <td className="px-3 py-2 text-sm">{item.category}</td>
-                  <td className="px-3 py-2 text-sm">{item.indicator}</td>
-                  <td className="px-3 py-2 text-sm">{item.unit}</td>
-                  <td className="px-3 py-2 text-sm">{item.targets[currentYear] ?? "-"}</td>
-                  <td className="px-3 py-2 text-sm">{item.achievements?.[currentYear] ?? "-"}</td>
-                  <td className="px-3 py-2 text-sm">
-                    <DocumentPreview url={item.documentUrl} name={item.documentName} type={item.documentType} emptyLabel="-" />
-                  </td>
-                  <td className="px-3 py-2 text-sm">
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => startEdit(item)} className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-semibold">
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => handleDelete(item.id)} className="rounded-md border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-700">
-                        Hapus
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {pagedRows.map((item) => {
+                const document = getDocumentForYear(item, currentYear);
+
+                return (
+                  <tr key={item.id} className="border-b border-[var(--border)]">
+                    <td className="px-3 py-2 text-sm font-semibold">{item.ikuNum}</td>
+                    <td className="px-3 py-2 text-sm">{item.category}</td>
+                    <td className="px-3 py-2 text-sm">{item.indicator}</td>
+                    <td className="px-3 py-2 text-sm">{item.unit}</td>
+                    <td className="px-3 py-2 text-sm">{item.targets[currentYear] ?? "-"}</td>
+                    <td className="px-3 py-2 text-sm">{item.achievements?.[currentYear] ?? "-"}</td>
+                    <td className="px-3 py-2 text-sm">
+                      <DocumentPreview url={document.documentUrl} name={document.documentName} type={document.documentType} emptyLabel="-" />
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => startEdit(item)} className="rounded-md border border-[var(--border)] px-2 py-1 text-xs font-semibold">
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => handleDelete(item.id)} className="rounded-md border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-700">
+                          Hapus
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {pagedRows.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-3 py-6 text-center text-sm text-[var(--muted)]">

@@ -1,4 +1,5 @@
 import { IKUData, SasaranProgram, Year } from "@/types";
+import { getDocumentForYear } from "@/lib/ikuYearlyDocuments";
 
 export const performanceCategoryOrder = [
   SasaranProgram.Talenta,
@@ -54,23 +55,27 @@ export const buildPerformanceContractRows = (data: IKUData[], year: Year): Perfo
       return String(a.indicator).localeCompare(String(b.indicator), "id");
     });
 
-  const rows: PerformanceContractRow[] = sorted.map((item) => ({
-    id: item.id,
-    categoryNo: categoryOrder(item.category),
-    category: item.category,
-    ikuNum: item.ikuNum,
-    indicator: item.indicator,
-    unit: item.unit,
-    target: formatPerformanceValue(item.targets?.[year]),
-    realization: formatPerformanceValue(item.achievements?.[year]),
-    documentUrl: item.documentUrl,
-    documentName: item.documentName,
-    documentType: item.documentType,
-    showCategory: false,
-    categoryRowSpan: 1,
-    showIku: false,
-    ikuRowSpan: 1,
-  }));
+  const rows: PerformanceContractRow[] = sorted.map((item) => {
+    const document = getDocumentForYear(item, year);
+
+    return {
+      id: item.id,
+      categoryNo: categoryOrder(item.category),
+      category: item.category,
+      ikuNum: item.ikuNum,
+      indicator: item.indicator,
+      unit: item.unit,
+      target: formatPerformanceValue(item.targets?.[year]),
+      realization: formatPerformanceValue(item.achievements?.[year]),
+      documentUrl: document.documentUrl,
+      documentName: document.documentName,
+      documentType: document.documentType,
+      showCategory: false,
+      categoryRowSpan: 1,
+      showIku: false,
+      ikuRowSpan: 1,
+    };
+  });
 
   let categoryStart = 0;
   while (categoryStart < rows.length) {

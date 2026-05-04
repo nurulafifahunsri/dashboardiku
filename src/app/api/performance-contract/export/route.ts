@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { IkuRecord, MasterYear } from "@/lib/db";
 import { buildPerformanceContractRows } from "@/lib/performanceContract";
 import { generatePerformanceContractPdf } from "@/lib/performanceContractPdf";
-import { IKUData, SUPPORTED_YEARS, Year } from "@/types";
+import { fetchIkuYearValues, rowToIkuData } from "@/lib/ikuRecordMapper";
+import { Year } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -34,42 +35,8 @@ const resolvePublicBaseUrl = (req: Request, requestUrl: URL) => {
   return process.env.NODE_ENV === "production" ? productionBaseUrl : trimTrailingSlash(requestUrl.origin);
 };
 
-const normalizeCell = (value: any) => {
-  if (value === null || value === undefined) return undefined;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : undefined;
-  }
-  return String(value);
-};
-
-const rowToIkuData = (row: any): IKUData => {
-  const targets: Partial<Record<Year, string>> = {};
-  const achievements: Partial<Record<Year, string>> = {};
-
-  SUPPORTED_YEARS.forEach((year) => {
-    const target = normalizeCell(row[`target${year}`]);
-    const achievement = normalizeCell(row[`achievement${year}`]);
-    if (target !== undefined) targets[year] = target;
-    if (achievement !== undefined) achievements[year] = achievement;
-  });
-
-  return {
-    id: row.id,
-    category: row.category,
-    ikuNum: row.ikuNum,
-    indicator: row.indicator,
-    unit: row.unit,
-    targets: targets as Record<Year, string>,
-    achievements,
-    documentUrl: normalizeCell(row.documentUrl),
-    documentName: normalizeCell(row.documentName),
-    documentType: normalizeCell(row.documentType),
-  };
-};
-
 const resolveYear = async (requestedYear: string | null): Promise<Year> => {
-  if (SUPPORTED_YEARS.includes(requestedYear as Year)) return requestedYear as Year;
+  if (requestedYear && /^\d{4}$/.test(requestedYear)) return requestedYear;
 
   const activeYear = await MasterYear.findOne({
     where: { is_active: true },
@@ -84,7 +51,9 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const year = await resolveYear(url.searchParams.get("year"));
     const rows = await IkuRecord.findAll({ order: [["createdAt", "ASC"]] });
-    const data = rows.map((row) => rowToIkuData(row.get({ plain: true })));
+    const plainRows = rows.map((row) => row.get({ plain: true }) as any);
+    const valuesByRecord = await fetchIkuYearValues(plainRows.map((row) => row.id));
+    const data = plainRows.map((row) => rowToIkuData(row, valuesByRecord.get(row.id) || []));
     const contractRows = buildPerformanceContractRows(data, year);
     const buffer = generatePerformanceContractPdf(contractRows, year, resolvePublicBaseUrl(req, url));
 

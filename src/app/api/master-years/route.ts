@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { MasterYear } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
-import { SUPPORTED_YEARS } from '@/types';
+import { generateChartColors, parseChartColors } from '@/lib/chartColors';
+
+const isValidYear = (year: unknown) => typeof year === 'string' && /^\d{4}$/.test(year);
 
 const mapRow = (row: any) => ({
   id: row.id,
@@ -9,6 +11,7 @@ const mapRow = (row: any) => ({
   label: row.label,
   isActive: row.is_active,
   sortOrder: row.sort_order,
+  chartColors: parseChartColors(row.chart_colors, row.year),
 });
 
 export async function GET() {
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
   try {
     const { year, label, isActive, sortOrder } = await req.json();
 
-    if (!year || !SUPPORTED_YEARS.includes(year)) {
+    if (!isValidYear(year)) {
       return NextResponse.json({ error: 'Tahun tidak valid' }, { status: 400 });
     }
 
@@ -43,6 +46,7 @@ export async function POST(req: Request) {
       label: label || `Tahun ${year}`,
       is_active: isActive ?? true,
       sort_order: Number.isFinite(sortOrder) ? Number(sortOrder) : Number(year),
+      chart_colors: JSON.stringify(generateChartColors(year)),
     } as any);
 
     return NextResponse.json(mapRow(created.get({ plain: true })), { status: 201 });
