@@ -23,9 +23,6 @@ const excelRowsFromIku = (data: IKUData[], years: Year[]) => {
             ikuNum: item.ikuNum,
             indicator: item.indicator,
             unit: item.unit,
-            documentUrl: item.documentUrl ?? '',
-            documentName: item.documentName ?? '',
-            documentType: item.documentType ?? '',
         };
 
         years.forEach((year) => {

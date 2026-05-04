@@ -50,9 +50,6 @@ export const rowToIkuData = (row: any, yearValues: any[] = []): IKUData => {
     targets,
     achievements,
     documents,
-    documentUrl: normalizeIkuCell(row.documentUrl),
-    documentName: normalizeIkuCell(row.documentName),
-    documentType: normalizeIkuCell(row.documentType),
   };
 };
 
@@ -62,9 +59,6 @@ export const ikuDataToDb = (payload: any) => ({
   ikuNum: payload.ikuNum,
   indicator: payload.indicator,
   unit: payload.unit,
-  documentUrl: normalizeIkuCell(payload.documentUrl) || null,
-  documentName: normalizeIkuCell(payload.documentName) || null,
-  documentType: normalizeIkuCell(payload.documentType) || null,
 });
 
 const yearKeysFromPayload = (payload: any) => {

@@ -136,6 +136,59 @@ const ikuOrder = (ikuNum: string) => {
   return Number.isFinite(parsed) ? parsed : 999;
 };
 
+const splitLongWord = (word: string, maxLength = 8) => {
+  if (word.length <= maxLength) return [word];
+  const chunks: string[] = [];
+  let cursor = 0;
+  while (cursor < word.length) {
+    const next = word.slice(cursor, cursor + maxLength);
+    chunks.push(cursor + maxLength < word.length ? `${next}-` : next);
+    cursor += maxLength;
+  }
+  return chunks;
+};
+
+const wrapIndicatorLabel = (label: string, maxLineLength = 15, maxLines = 5) => {
+  const words = label.split(/\s+/).flatMap((word) => splitLongWord(word));
+  const lines: string[] = [];
+
+  words.forEach((word) => {
+    if (!lines.length) {
+      lines.push(word);
+      return;
+    }
+
+    const current = lines[lines.length - 1] || "";
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxLineLength) {
+      lines[lines.length - 1] = next;
+    } else {
+      lines.push(word);
+    }
+  });
+
+  if (lines.length <= maxLines) return lines;
+  const visible = lines.slice(0, maxLines);
+  visible[maxLines - 1] = `${visible[maxLines - 1].replace(/\.*$/, "")}...`;
+  return visible;
+};
+
+const ModalIndicatorTick = ({ x = 0, y = 0, payload }: any) => {
+  const lines = wrapIndicatorLabel(String(payload?.value || ""));
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" fill="#495a4f" fontSize={10} fontWeight={700}>
+        {lines.map((line, index) => (
+          <tspan key={`${line}-${index}`} x={0} dy={index === 0 ? 12 : 12}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+};
+
 const IndicatorListTooltip = ({ active, payload, year }: any) => {
   if (!active || !payload?.length) return null;
   const indicators = payload[0]?.payload?.indicators as IKUData[] | undefined;
@@ -541,9 +594,9 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
         <ModalShell
           onClose={() => setSelectedDistribution(null)}
           labelledBy="distribution-detail-title"
-          className="surface-card max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-3xl"
+          className="surface-card flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+          <div className="flex flex-none items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
             <div>
               <h3 id="distribution-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
                 {selectedDistribution.category} - {selectedDistribution.ikuNum}
@@ -560,18 +613,19 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
             </button>
           </div>
 
-          <div className="max-h-[calc(92vh-86px)] overflow-auto px-5 py-5 sm:px-6">
-            <div className="min-w-[760px]" style={{ width: Math.max(760, modalChartData.length * 190), height: Math.max(360, modalChartData.length * 28 + 260) }}>
+          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6">
+            <div
+              className="h-full min-h-[560px] min-w-[860px]"
+              style={{ width: Math.max(860, modalChartData.length * 170) }}
+            >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={modalChartData} margin={{ left: 18, right: 24, top: 18, bottom: 98 }}>
+                <BarChart data={modalChartData} margin={{ left: 18, right: 24, top: 18, bottom: 14 }}>
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe8de" />
                   <XAxis
                     dataKey="indicator"
                     interval={0}
-                    angle={-24}
-                    textAnchor="end"
-                    height={112}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: "#495a4f" }}
+                    height={86}
+                    tick={<ModalIndicatorTick />}
                     axisLine={false}
                     tickLine={false}
                   />

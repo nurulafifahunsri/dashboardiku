@@ -21,9 +21,6 @@ export interface IkuRecordAttributes {
     ikuNum: string;
     indicator: string;
     unit: string;
-    documentUrl?: string | null;
-    documentName?: string | null;
-    documentType?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -75,9 +72,6 @@ export const IkuRecord = sequelize.define<Model<IkuRecordAttributes>>(
         ikuNum: { type: DataTypes.STRING(32), allowNull: false },
         indicator: { type: DataTypes.TEXT, allowNull: false },
         unit: { type: DataTypes.STRING(64), allowNull: false },
-        documentUrl: { type: DataTypes.STRING(512), allowNull: true },
-        documentName: { type: DataTypes.STRING(255), allowNull: true },
-        documentType: { type: DataTypes.STRING(128), allowNull: true },
     },
     {
         tableName: 'iku_records',

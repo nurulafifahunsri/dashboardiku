@@ -31,9 +31,6 @@ const emptyForm = (): IKUData => ({
   targets: {},
   achievements: {},
   documents: {},
-  documentUrl: "",
-  documentName: "",
-  documentType: "",
 });
 
 const toComparableValue = (value: unknown) => String(value || "").toLowerCase();

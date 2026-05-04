@@ -23,9 +23,6 @@ export interface IKUData {
   targets: Partial<Record<Year, string | number>>;
   achievements?: Partial<Record<Year, string | number>>;
   documents?: Partial<Record<Year, IKUDocument>>;
-  documentUrl?: string;
-  documentName?: string;
-  documentType?: string;
   updatedAt?: string;
 }
 
