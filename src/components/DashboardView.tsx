@@ -278,7 +278,7 @@ const RadarIndicatorTooltip = ({ active, payload, label }: any) => {
 
 const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColors = defaultChartColors }) => {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
-  const [isAchievementModalOpen, setIsAchievementModalOpen] = useState(false);
+  const [summaryModal, setSummaryModal] = useState<SummaryKey | null>(null);
   const categoryColors = chartColors.categories;
 
   const yearIndicators = useMemo(() => data.filter((item) => hasYearEntry(item, year)), [data, year]);
@@ -323,6 +323,61 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
         }),
     [yearIndicators, year]
   );
+
+  const totalIkuRows = useMemo(() => {
+    return Object.values(SasaranProgram).flatMap((category) => {
+      const grouped = data
+        .filter((item) => item.category === category)
+        .reduce<Record<string, IKUData[]>>((acc, item) => {
+          acc[item.ikuNum] = [...(acc[item.ikuNum] || []), item];
+          return acc;
+        }, {});
+
+      return Object.entries(grouped)
+        .sort((a, b) => ikuOrder(a[0]) - ikuOrder(b[0]))
+        .map(([ikuNum, indicators]) => ({
+          category,
+          ikuNum,
+          indicatorCount: indicators.length,
+          yearIndicatorCount: indicators.filter((item) => hasYearEntry(item, year)).length,
+        }));
+    });
+  }, [data, year]);
+
+  const performanceBreakdown = useMemo(() => {
+    return Object.values(SasaranProgram).map((category) => {
+      const categoryItems = data.filter((item) => item.category === category && hasYearEntry(item, year));
+      const achieved = categoryItems.filter((item) => compareAchievement(item, year) === true).length;
+      const notAchieved = categoryItems.filter((item) => compareAchievement(item, year) === false).length;
+      const incomplete = categoryItems.filter((item) => compareAchievement(item, year) === null).length;
+      const rate = categoryItems.length ? Math.round((achieved / categoryItems.length) * 100) : 0;
+
+      return {
+        category,
+        total: categoryItems.length,
+        achieved,
+        notAchieved,
+        incomplete,
+        rate,
+      };
+    });
+  }, [data, year]);
+
+  const yearRows = useMemo(() => {
+    return availableYears.map((currentYear) => {
+      const items = data.filter((item) => hasYearEntry(item, currentYear));
+      const achieved = items.filter((item) => compareAchievement(item, currentYear) === true).length;
+      const rate = items.length ? Math.round((achieved / items.length) * 100) : 0;
+
+      return {
+        year: currentYear,
+        uniqueIku: new Set(items.map((item) => item.ikuNum)).size,
+        indicators: items.length,
+        achieved,
+        rate,
+      };
+    });
+  }, [availableYears, data]);
 
   const distributionByCategory = useMemo(() => {
     return Object.values(SasaranProgram).map((category) => {
@@ -437,24 +492,16 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
             </>
           );
 
-          if (item.key === "achieved") {
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setIsAchievementModalOpen(true)}
-                className="surface-card metric-card stagger-in rounded-2xl p-5 text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                aria-haspopup="dialog"
-              >
-                {content}
-              </button>
-            );
-          }
-
           return (
-            <article key={item.key} className="surface-card metric-card stagger-in rounded-2xl p-5">
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setSummaryModal(item.key)}
+              className="surface-card metric-card stagger-in rounded-2xl p-5 text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              aria-haspopup="dialog"
+            >
               {content}
-            </article>
+            </button>
           );
         })}
       </section>
