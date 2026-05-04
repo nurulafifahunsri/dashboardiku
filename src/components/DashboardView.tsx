@@ -705,22 +705,30 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
         </ModalShell>
       )}
 
-      {isAchievementModalOpen && (
+      {summaryModal && (
         <ModalShell
-          onClose={() => setIsAchievementModalOpen(false)}
-          labelledBy="achievement-detail-title"
+          onClose={() => setSummaryModal(null)}
+          labelledBy="summary-detail-title"
           className="surface-card max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl"
         >
           <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 sm:px-6">
             <div>
-              <h3 id="achievement-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
-                Indikator Tercapai {year}
+              <h3 id="summary-detail-title" className="display-font text-xl font-bold text-[var(--ink)]">
+                {summaryModal === "total" && "Total IKU"}
+                {summaryModal === "achieved" && `Indikator Tercapai ${year}`}
+                {summaryModal === "rate" && `Tingkat Keberhasilan ${year}`}
+                {summaryModal === "year" && "Tahun Aktif"}
               </h3>
-              <p className="mt-1 text-sm text-[var(--muted)]">{yearIndicators.length ? `${achievedCount}/${yearIndicators.length} indikator tercapai` : "Tidak ada data indikator"}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {summaryModal === "total" && `${uniqueIkuCount} IKU unik dan ${data.length} indikator di seluruh data.`}
+                {summaryModal === "achieved" && (yearIndicators.length ? `${achievedCount}/${yearIndicators.length} indikator tercapai` : "Tidak ada data indikator")}
+                {summaryModal === "rate" && `Rekap capaian setiap sasaran pada tahun ${year}.`}
+                {summaryModal === "year" && `Ringkasan tahun evaluasi yang aktif di dashboard.`}
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => setIsAchievementModalOpen(false)}
+              onClick={() => setSummaryModal(null)}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
               aria-label="Tutup modal"
             >
@@ -729,47 +737,129 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
           </div>
 
           <div className="max-h-[calc(92vh-86px)] overflow-auto p-5 sm:p-6">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
-                  <th className="px-3 py-3">IKU</th>
-                  <th className="px-3 py-3">Kategori</th>
-                  <th className="px-3 py-3">Indikator</th>
-                  <th className="px-3 py-3">Target</th>
-                  <th className="px-3 py-3">Realisasi</th>
-                  <th className="px-3 py-3 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {achievementRows.map(({ item, status, target, realization }) => {
-                  const meta = achievementStatusMeta(status);
-                  return (
-                    <tr key={item.id} className="border-b border-[var(--border)] last:border-none">
-                      <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">{item.ikuNum}</td>
-                      <td className="px-3 py-3 align-top text-[var(--muted)]">{item.category}</td>
-                      <td className="px-3 py-3 align-top font-semibold leading-snug text-[var(--ink)]">{item.indicator}</td>
-                      <td className="px-3 py-3 align-top font-semibold text-indigo-700">{target}</td>
-                      <td className="px-3 py-3 align-top font-semibold text-emerald-700">{realization}</td>
-                      <td className="px-3 py-3 align-top">
-                        <div className="flex justify-center">
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${meta.className}`}>
-                            {status === true ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                            {meta.label}
-                          </span>
-                        </div>
+            {summaryModal === "total" && (
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
+                    <th className="px-3 py-3">Kategori</th>
+                    <th className="px-3 py-3">IKU</th>
+                    <th className="px-3 py-3 text-center">Indikator Total</th>
+                    <th className="px-3 py-3 text-center">Indikator {year}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {totalIkuRows.map((row) => (
+                    <tr key={`${row.category}-${row.ikuNum}`} className="border-b border-[var(--border)] last:border-none">
+                      <td className="px-3 py-3 align-top font-semibold text-[var(--ink)]">{row.category}</td>
+                      <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">{row.ikuNum}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-[var(--ink)]">{row.indicatorCount}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-emerald-700">{row.yearIndicatorCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {summaryModal === "achieved" && (
+              <table className="w-full min-w-[860px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
+                    <th className="px-3 py-3">IKU</th>
+                    <th className="px-3 py-3">Kategori</th>
+                    <th className="px-3 py-3">Indikator</th>
+                    <th className="px-3 py-3">Target</th>
+                    <th className="px-3 py-3">Realisasi</th>
+                    <th className="px-3 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {achievementRows.map(({ item, status, target, realization }) => {
+                    const meta = achievementStatusMeta(status);
+                    return (
+                      <tr key={item.id} className="border-b border-[var(--border)] last:border-none">
+                        <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">{item.ikuNum}</td>
+                        <td className="px-3 py-3 align-top text-[var(--muted)]">{item.category}</td>
+                        <td className="px-3 py-3 align-top font-semibold leading-snug text-[var(--ink)]">{item.indicator}</td>
+                        <td className="px-3 py-3 align-top font-semibold text-indigo-700">{target}</td>
+                        <td className="px-3 py-3 align-top font-semibold text-emerald-700">{realization}</td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex justify-center">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${meta.className}`}>
+                              {status === true ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                              {meta.label}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {achievementRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-sm text-[var(--muted)]">
+                        Tidak ada indikator pada tahun {year}.
                       </td>
                     </tr>
-                  );
-                })}
-                {achievementRows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-[var(--muted)]">
-                      Tidak ada indikator pada tahun {year}.
-                    </td>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {summaryModal === "rate" && (
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
+                    <th className="px-3 py-3">Sasaran</th>
+                    <th className="px-3 py-3 text-center">Tercapai</th>
+                    <th className="px-3 py-3 text-center">Belum</th>
+                    <th className="px-3 py-3 text-center">Belum Lengkap</th>
+                    <th className="px-3 py-3 text-center">Total</th>
+                    <th className="px-3 py-3 text-center">Keberhasilan</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {performanceBreakdown.map((row) => (
+                    <tr key={row.category} className="border-b border-[var(--border)] last:border-none">
+                      <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">{row.category}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-emerald-700">{row.achieved}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-rose-700">{row.notAchieved}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-slate-600">{row.incomplete}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-[var(--ink)]">{row.total}</td>
+                      <td className="px-3 py-3 text-center font-bold text-sky-700">{row.total ? `${row.rate}%` : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {summaryModal === "year" && (
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
+                    <th className="px-3 py-3">Tahun</th>
+                    <th className="px-3 py-3 text-center">IKU</th>
+                    <th className="px-3 py-3 text-center">Indikator</th>
+                    <th className="px-3 py-3 text-center">Tercapai</th>
+                    <th className="px-3 py-3 text-center">Keberhasilan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearRows.map((row) => (
+                    <tr key={row.year} className="border-b border-[var(--border)] last:border-none">
+                      <td className="px-3 py-3 align-top font-bold text-[var(--ink)]">
+                        <span className="inline-flex items-center gap-2">
+                          {row.year}
+                          {row.year === year && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-amber-700">Aktif</span>}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center font-semibold text-[var(--ink)]">{row.uniqueIku}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-[var(--ink)]">{row.indicators}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-emerald-700">{row.achieved}</td>
+                      <td className="px-3 py-3 text-center font-bold text-sky-700">{row.indicators ? `${row.rate}%` : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </ModalShell>
       )}
