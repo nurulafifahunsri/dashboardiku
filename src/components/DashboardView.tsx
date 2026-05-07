@@ -18,10 +18,12 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
 } from "recharts";
-import { ChartColorConfig, IKUData, Year, SasaranProgram } from "../types";
+import { ChartColorConfig, IKUData, IKUDocument, Year, SasaranProgram } from "../types";
 import { Trophy, TrendingUp, CheckCircle2, BarChart3, AlertCircle, X } from "lucide-react";
 import ModalShell from "./ModalShell";
+import DocumentPreview from "./DocumentPreview";
 import { defaultChartColors } from "@/lib/chartColors";
+import { getDocumentForYear } from "@/lib/ikuYearlyDocuments";
 
 interface Props {
   year: Year;
@@ -31,6 +33,7 @@ interface Props {
 }
 
 const MIN_RADAR_IKU_COUNT = 3;
+const linkDocumentType = "text/uri-list";
 
 type DistributionRow = {
   category: SasaranProgram;
@@ -49,10 +52,18 @@ type CategoryTrendDetail = {
 
 type SummaryKey = "total" | "achieved" | "rate" | "year";
 
+type SelectedIndicatorDocument = {
+  document: IKUDocument;
+  label: string;
+};
+
 const formatDisplayValue = (value: unknown) => {
   if (value === undefined || value === null || value === "") return "-";
   return String(value);
 };
+
+const isLinkDocument = (document?: IKUDocument) =>
+  document?.documentType === linkDocumentType || Boolean(document?.documentUrl && /^https?:\/\//i.test(document.documentUrl));
 
 const hasMetricValue = (value: unknown): boolean => {
   if (value === undefined || value === null) return false;
@@ -279,6 +290,7 @@ const RadarIndicatorTooltip = ({ active, payload, label }: any) => {
 const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColors = defaultChartColors }) => {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
   const [summaryModal, setSummaryModal] = useState<SummaryKey | null>(null);
+  const [selectedIndicatorDocument, setSelectedIndicatorDocument] = useState<SelectedIndicatorDocument | null>(null);
   const categoryColors = chartColors.categories;
 
   const yearIndicators = useMemo(() => data.filter((item) => hasYearEntry(item, year)), [data, year]);
@@ -463,9 +475,27 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
         realization: toNumericValue(realizationRaw),
         targetRaw: formatMetricValue(targetRaw, item.unit),
         realizationRaw: formatMetricValue(realizationRaw, item.unit),
+        document: getDocumentForYear(item, year),
+        documentLabel: item.indicator,
       };
     });
   }, [selectedDistribution, year]);
+
+  const openIndicatorDocument = (entry: any) => {
+    const payload = entry?.payload;
+    const document = payload?.document as IKUDocument | undefined;
+    if (!document?.documentUrl) return;
+
+    if (isLinkDocument(document)) {
+      window.open(document.documentUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setSelectedIndicatorDocument({
+      document,
+      label: payload?.documentLabel || payload?.indicator || "Dokumen indikator",
+    });
+  };
 
   return (
     <div className="space-y-5 lg:space-y-6">
@@ -696,13 +726,40 @@ const DashboardView: React.FC<Props> = ({ year, data, availableYears, chartColor
                   </YAxis>
                   <Tooltip content={<TargetRealizationTooltip />} />
                   <Legend verticalAlign="top" height={32} />
-                  <Bar dataKey="target" name="Target" fill={chartColors.target} radius={[8, 8, 0, 0]} minPointSize={2} />
-                  <Bar dataKey="realization" name="Realisasi" fill={chartColors.realization} radius={[8, 8, 0, 0]} minPointSize={2} />
+                  <Bar
+                    dataKey="target"
+                    name="Target"
+                    fill={chartColors.target}
+                    radius={[8, 8, 0, 0]}
+                    minPointSize={2}
+                    cursor="pointer"
+                    onClick={openIndicatorDocument}
+                  />
+                  <Bar
+                    dataKey="realization"
+                    name="Realisasi"
+                    fill={chartColors.realization}
+                    radius={[8, 8, 0, 0]}
+                    minPointSize={2}
+                    cursor="pointer"
+                    onClick={openIndicatorDocument}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </ModalShell>
+      )}
+
+      {selectedIndicatorDocument && (
+        <DocumentPreview
+          url={selectedIndicatorDocument.document.documentUrl}
+          name={selectedIndicatorDocument.document.documentName || selectedIndicatorDocument.label}
+          type={selectedIndicatorDocument.document.documentType}
+          hideTrigger
+          openByDefault
+          onClose={() => setSelectedIndicatorDocument(null)}
+        />
       )}
 
       {summaryModal && (

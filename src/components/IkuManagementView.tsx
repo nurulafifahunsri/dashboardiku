@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { IKUData, IKUDocument, MasterYear, SasaranProgram, Year } from "../types";
 import { ikuApi } from "../services/ikuApi";
-import { ArrowDownAZ, ArrowUpAZ, Plus, Search, UploadCloud, X } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Link as LinkIcon, Plus, Search, UploadCloud, X } from "lucide-react";
 import DocumentPreview from "./DocumentPreview";
 import ModalShell from "./ModalShell";
 import { getDocumentForYear } from "@/lib/ikuYearlyDocuments";
@@ -17,10 +17,12 @@ interface Props {
 type SortKey = "ikuNum" | "category" | "indicator" | "unit";
 type SortDirection = "asc" | "desc";
 type FormErrors = Record<string, string>;
+type DocumentInputMode = "upload" | "link";
 
 const maxDocumentSize = 10 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp", "text/csv", "application/csv", "application/vnd.ms-excel"]);
 const allowedDocumentExtensions = /\.(pdf|png|jpe?g|gif|webp|csv)$/i;
+const linkDocumentType = "text/uri-list";
 
 const emptyForm = (): IKUData => ({
   id: "",
@@ -32,6 +34,16 @@ const emptyForm = (): IKUData => ({
   achievements: {},
   documents: {},
 });
+
+const isLinkDocument = (document?: IKUDocument) =>
+  document?.documentType === linkDocumentType || Boolean(document?.documentUrl && /^https?:\/\//i.test(document.documentUrl));
+
+const normalizeDocumentLink = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
 
 const toComparableValue = (value: unknown) => String(value || "").toLowerCase();
 
@@ -57,6 +69,8 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
   const [documentFiles, setDocumentFiles] = useState<Partial<Record<Year, File>>>({});
   const [documentPreviewUrls, setDocumentPreviewUrls] = useState<Partial<Record<Year, string>>>({});
   const [documentInputKeys, setDocumentInputKeys] = useState<Record<Year, number>>({});
+  const [documentInputModes, setDocumentInputModes] = useState<Record<Year, DocumentInputMode>>({});
+  const [documentLinks, setDocumentLinks] = useState<Partial<Record<Year, string>>>({});
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("semua");
@@ -142,7 +156,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
   const fieldError = (key: string) =>
     formErrors[key] ? <p className="mt-1 text-xs font-semibold text-rose-600">{formErrors[key]}</p> : null;
 
-  const validateForm = (payload: IKUData, files: Partial<Record<Year, File>>) => {
+  const validateForm = (payload: IKUData, files: Partial<Record<Year, File>>, links: Partial<Record<Year, string>>) => {
     const errors: FormErrors = {};
     if (!payload.category?.trim()) errors.category = "Kategori wajib dipilih.";
     if (!payload.ikuNum?.trim()) errors.ikuNum = "IKU wajib diisi.";
@@ -161,6 +175,17 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
       if (file.size > maxDocumentSize) errors[`documents.${documentYear}`] = "Ukuran dokumen maksimal 10MB.";
     });
 
+    availableYears.forEach((documentYear) => {
+      const link = String(links[documentYear] || "").trim();
+      if (!link) return;
+      try {
+        const parsed = new URL(normalizeDocumentLink(link));
+        if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid protocol");
+      } catch {
+        errors[`documents.${documentYear}`] = "Link dokumen harus berupa URL yang valid.";
+      }
+    });
+
     return errors;
   };
 
@@ -171,6 +196,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
   const handleDocumentChange = (documentYear: Year, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     revokePreviewUrl(documentPreviewUrls[documentYear]);
+    setDocumentInputModes((prev) => ({ ...prev, [documentYear]: "upload" }));
     setDocumentFiles((prev) => {
       const next = { ...prev };
       if (file) next[documentYear] = file;
@@ -183,6 +209,11 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
       else delete next[documentYear];
       return next;
     });
+    setDocumentLinks((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
     setFormErrors((prev) => {
       const next = { ...prev };
       delete next.document;
@@ -191,9 +222,67 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
     });
   };
 
+  const clearStoredDocument = (documentYear: Year) => {
+    setForm((prev) => {
+      const documents = { ...(prev.documents || {}) };
+      documents[documentYear] = {};
+      return { ...prev, documents };
+    });
+  };
+
+  const updateDocumentMode = (documentYear: Year, mode: DocumentInputMode) => {
+    revokePreviewUrl(documentPreviewUrls[documentYear]);
+    setDocumentInputModes((prev) => ({ ...prev, [documentYear]: mode }));
+    setDocumentFiles((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
+    setDocumentPreviewUrls((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
+    setDocumentLinks((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
+    setDocumentInputKeys((prev) => ({ ...prev, [documentYear]: (prev[documentYear] ?? 0) + 1 }));
+    clearStoredDocument(documentYear);
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next[`documents.${documentYear}`];
+      return next;
+    });
+  };
+
+  const updateDocumentLink = (documentYear: Year, value: string) => {
+    revokePreviewUrl(documentPreviewUrls[documentYear]);
+    setDocumentInputModes((prev) => ({ ...prev, [documentYear]: "link" }));
+    setDocumentLinks((prev) => ({ ...prev, [documentYear]: value }));
+    setDocumentFiles((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
+    setDocumentPreviewUrls((prev) => {
+      const next = { ...prev };
+      delete next[documentYear];
+      return next;
+    });
+    setDocumentInputKeys((prev) => ({ ...prev, [documentYear]: (prev[documentYear] ?? 0) + 1 }));
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next[`documents.${documentYear}`];
+      return next;
+    });
+  };
+
   const clearSelectedDocument = (documentYear?: Year) => {
     if (documentYear) {
       revokePreviewUrl(documentPreviewUrls[documentYear]);
+      clearStoredDocument(documentYear);
       setDocumentFiles((prev) => {
         const next = { ...prev };
         delete next[documentYear];
@@ -204,7 +293,12 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
         delete next[documentYear];
         return next;
       });
-      setDocumentInputKeys((prev) => ({ ...prev, [documentYear]: prev[documentYear] + 1 }));
+      setDocumentLinks((prev) => {
+        const next = { ...prev };
+        delete next[documentYear];
+        return next;
+      });
+      setDocumentInputKeys((prev) => ({ ...prev, [documentYear]: (prev[documentYear] ?? 0) + 1 }));
       return;
     }
 
@@ -212,6 +306,8 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
     setDocumentFiles({});
     setDocumentPreviewUrls({});
     setDocumentInputKeys({});
+    setDocumentInputModes({});
+    setDocumentLinks({});
   };
 
   const resetState = () => {
@@ -237,7 +333,7 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
     setError("");
     setMessage("");
 
-    const validationErrors = validateForm(form, documentFiles);
+    const validationErrors = validateForm(form, documentFiles, documentLinks);
     if (Object.keys(validationErrors).length) {
       setFormErrors(validationErrors);
       return;
@@ -249,6 +345,19 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
 
       for (const documentYear of availableYears) {
         const file = documentFiles[documentYear];
+        const link = String(documentLinks[documentYear] || "").trim();
+        const mode = documentInputModes[documentYear];
+
+        if (mode === "link" && link) {
+          const normalizedLink = normalizeDocumentLink(link);
+          uploadedDocuments[documentYear] = {
+            documentUrl: normalizedLink,
+            documentName: normalizedLink,
+            documentType: linkDocumentType,
+          };
+          continue;
+        }
+
         if (file) uploadedDocuments[documentYear] = await ikuApi.uploadDocument(file);
       }
 
@@ -275,6 +384,19 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
     setMessage("");
     clearSelectedDocument();
     setFormErrors({});
+    const nextDocumentModes: Record<Year, DocumentInputMode> = {};
+    const nextDocumentLinks: Partial<Record<Year, string>> = {};
+    availableYears.forEach((documentYear) => {
+      const document = getDocumentForYear(item, documentYear);
+      if (isLinkDocument(document)) {
+        nextDocumentModes[documentYear] = "link";
+        nextDocumentLinks[documentYear] = document.documentUrl || "";
+      } else {
+        nextDocumentModes[documentYear] = "upload";
+      }
+    });
+    setDocumentInputModes(nextDocumentModes);
+    setDocumentLinks(nextDocumentLinks);
     setForm({
       ...item,
       targets: { ...emptyForm().targets, ...item.targets },
@@ -489,31 +611,81 @@ const IkuManagementView: React.FC<Props> = ({ data, onDataChanged, years, year }
                 const selectedFile = documentFiles[documentYear];
                 const previewUrl = documentPreviewUrls[documentYear];
                 const document = getDocumentForYear(form, documentYear);
-                const hasPreview = Boolean(previewUrl || document.documentUrl);
+                const selectedMode = documentInputModes[documentYear] ?? (isLinkDocument(document) ? "link" : "upload");
+                const linkValue = documentLinks[documentYear] ?? (isLinkDocument(document) ? document.documentUrl ?? "" : "");
+                const hasDocument = Boolean(selectedFile || previewUrl || document.documentUrl || linkValue);
+                const hasPreview = selectedMode === "upload" && Boolean(previewUrl || document.documentUrl);
 
                 return (
                   <div key={`document-${documentYear}`} className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{documentYear}</p>
-                      {selectedFile && (
+                      {hasDocument && (
                         <button type="button" onClick={() => clearSelectedDocument(documentYear)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700">
                           <X size={12} />
-                          Batalkan
+                          Hapus
                         </button>
                       )}
                     </div>
-                    <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-center ${formErrors[`documents.${documentYear}`] ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-white"}`}>
-                      <UploadCloud size={18} className="text-emerald-700" />
-                      <span className="text-xs font-semibold text-[var(--ink)]">Unggah dokumen</span>
-                      <input
-                        key={documentInputKeys[documentYear] ?? 0}
-                        type="file"
-                        accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/csv,application/csv,application/vnd.ms-excel,.csv"
-                        className="hidden"
-                        onChange={(event) => handleDocumentChange(documentYear, event)}
-                        aria-invalid={Boolean(formErrors[`documents.${documentYear}`])}
-                      />
-                    </label>
+                    <div className="mb-2 grid grid-cols-2 overflow-hidden rounded-lg border border-[var(--border)] bg-white p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedMode !== "upload") updateDocumentMode(documentYear, "upload");
+                        }}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold ${selectedMode === "upload" ? "bg-emerald-700 text-white" : "text-[var(--muted)]"}`}
+                      >
+                        <UploadCloud size={14} />
+                        Upload
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedMode !== "link") updateDocumentMode(documentYear, "link");
+                        }}
+                        className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold ${selectedMode === "link" ? "bg-emerald-700 text-white" : "text-[var(--muted)]"}`}
+                      >
+                        <LinkIcon size={14} />
+                        Link
+                      </button>
+                    </div>
+
+                    {selectedMode === "upload" && (
+                      <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-center ${formErrors[`documents.${documentYear}`] ? "border-rose-400 bg-rose-50" : "border-[var(--border)] bg-white"}`}>
+                        <UploadCloud size={18} className="text-emerald-700" />
+                        <span className="text-xs font-semibold text-[var(--ink)]">Unggah dokumen</span>
+                        <input
+                          key={documentInputKeys[documentYear] ?? 0}
+                          type="file"
+                          accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/csv,application/csv,application/vnd.ms-excel,.csv"
+                          className="hidden"
+                          onChange={(event) => handleDocumentChange(documentYear, event)}
+                          aria-invalid={Boolean(formErrors[`documents.${documentYear}`])}
+                        />
+                      </label>
+                    )}
+
+                    {selectedMode === "link" && (
+                      <div>
+                        <div className={`flex items-center gap-2 rounded-lg border bg-white px-3 py-2 ${formErrors[`documents.${documentYear}`] ? "border-rose-400 bg-rose-50" : "border-[var(--border)]"}`}>
+                          <LinkIcon size={16} className="flex-shrink-0 text-emerald-700" />
+                          <input
+                            type="url"
+                            value={linkValue}
+                            onChange={(event) => updateDocumentLink(documentYear, event.target.value)}
+                            placeholder="https://contoh.ac.id/dokumen"
+                            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
+                            aria-invalid={Boolean(formErrors[`documents.${documentYear}`])}
+                          />
+                        </div>
+                        {linkValue && (
+                          <a href={normalizeDocumentLink(linkValue)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                            <LinkIcon size={13} />
+                            Buka link
+                          </a>
+                        )}
+                      </div>
+                    )}
                     {fieldError(`documents.${documentYear}`)}
                     {hasPreview && (
                       <div className="mt-2">

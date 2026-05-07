@@ -9,6 +9,9 @@ interface Props {
   name?: string;
   type?: string;
   emptyLabel?: string;
+  hideTrigger?: boolean;
+  openByDefault?: boolean;
+  onClose?: () => void;
 }
 
 const documentPath = (url?: string, name?: string) => `${url || ""} ${name || ""}`.split("?")[0];
@@ -68,8 +71,8 @@ const parseCsv = (text: string) => {
   return rows;
 };
 
-const DocumentPreview: React.FC<Props> = ({ url, name, type, emptyLabel = "Belum ada dokumen" }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const DocumentPreview: React.FC<Props> = ({ url, name, type, emptyLabel = "Belum ada dokumen", hideTrigger = false, openByDefault = false, onClose }) => {
+  const [isOpen, setIsOpen] = useState(openByDefault);
   const [shareStatus, setShareStatus] = useState("");
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvLoading, setCsvLoading] = useState(false);
@@ -126,37 +129,43 @@ const DocumentPreview: React.FC<Props> = ({ url, name, type, emptyLabel = "Belum
     }
   };
 
+  const closePreview = () => {
+    setIsOpen(false);
+    onClose?.();
+  };
+
   if (!url) {
     return <span className="text-xs text-[var(--muted)]">{emptyLabel}</span>;
   }
 
   return (
     <>
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 py-1.5 text-xs font-semibold text-[var(--ink)]"
-        >
-          {image ? <ImageIcon size={14} /> : <FileText size={14} />}
-          Preview
-        </button>
-        {canShare && (
+      {!hideTrigger && (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={copyShareLink}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700"
+            onClick={() => setIsOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-2.5 py-1.5 text-xs font-semibold text-[var(--ink)]"
           >
-            {shareStatus === "Link disalin" ? <Check size={14} /> : <Share2 size={14} />}
-            Share Link
+            {image ? <ImageIcon size={14} /> : <FileText size={14} />}
+            Preview
           </button>
-        )}
-        {shareStatus && <span className="text-xs font-semibold text-[var(--muted)]">{shareStatus}</span>}
-      </span>
-
+          {canShare && (
+            <button
+              type="button"
+              onClick={copyShareLink}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700"
+            >
+              {shareStatus === "Link disalin" ? <Check size={14} /> : <Share2 size={14} />}
+              Share Link
+            </button>
+          )}
+          {shareStatus && <span className="text-xs font-semibold text-[var(--muted)]">{shareStatus}</span>}
+        </span>
+      )}
       {isOpen && (
         <ModalShell
-          onClose={() => setIsOpen(false)}
+          onClose={closePreview}
           ariaLabel={label}
           className="surface-card max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl"
         >
@@ -178,7 +187,7 @@ const DocumentPreview: React.FC<Props> = ({ url, name, type, emptyLabel = "Belum
               )}
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={closePreview}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink)]"
                 aria-label="Tutup preview"
               >
