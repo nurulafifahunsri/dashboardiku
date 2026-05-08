@@ -32,7 +32,7 @@ interface Props {
   chartColors?: ChartColorConfig;
 }
 
-const MIN_RADAR_IKU_COUNT = 3;
+const MIN_RADAR_IKU_COUNT = 1;
 const linkDocumentType = "text/uri-list";
 
 type DistributionRow = {
