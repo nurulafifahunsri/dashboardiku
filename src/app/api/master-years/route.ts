@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MasterYear } from '@/lib/db';
+import { MasterYear, sequelize } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
 import { generateChartColors, parseChartColors } from '@/lib/chartColors';
 
@@ -10,6 +10,7 @@ const mapRow = (row: any) => ({
   year: row.year,
   label: row.label,
   isActive: row.is_active,
+  isDefault: row.is_default,
   sortOrder: row.sort_order,
   chartColors: parseChartColors(row.chart_colors, row.year),
 });
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { year, label, isActive, sortOrder } = await req.json();
+    const { year, label, isActive, isDefault, sortOrder } = await req.json();
 
     if (!isValidYear(year)) {
       return NextResponse.json({ error: 'Tahun tidak valid' }, { status: 400 });
@@ -41,13 +42,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Tahun sudah ada' }, { status: 400 });
     }
 
-    const created = await MasterYear.create({
-      year,
-      label: label || `Tahun ${year}`,
-      is_active: isActive ?? true,
-      sort_order: Number.isFinite(sortOrder) ? Number(sortOrder) : Number(year),
-      chart_colors: JSON.stringify(generateChartColors(year)),
-    } as any);
+    const created = await sequelize.transaction(async (transaction) => {
+      if (isDefault === true) {
+        await MasterYear.update({ is_default: false } as any, { where: {}, transaction });
+      }
+
+      return MasterYear.create({
+        year,
+        label: label || `Tahun ${year}`,
+        is_active: isDefault === true ? true : isActive ?? true,
+        is_default: isDefault === true,
+        sort_order: Number.isFinite(sortOrder) ? Number(sortOrder) : Number(year),
+        chart_colors: JSON.stringify(generateChartColors(year)),
+      } as any, { transaction });
+    });
 
     return NextResponse.json(mapRow(created.get({ plain: true })), { status: 201 });
   } catch (error) {

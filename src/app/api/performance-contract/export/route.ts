@@ -39,11 +39,17 @@ const resolveYear = async (requestedYear: string | null): Promise<Year> => {
   if (requestedYear && /^\d{4}$/.test(requestedYear)) return requestedYear;
 
   const activeYear = await MasterYear.findOne({
+    where: { is_active: true, is_default: true },
+    order: [["sort_order", "ASC"], ["year", "ASC"]],
+  });
+  if (activeYear) return activeYear.getDataValue("year") as Year;
+
+  const fallbackYear = await MasterYear.findOne({
     where: { is_active: true },
-    order: [["sort_order", "DESC"], ["year", "DESC"]],
+    order: [["sort_order", "ASC"], ["year", "ASC"]],
   });
 
-  return (activeYear?.getDataValue("year") || "2026") as Year;
+  return (fallbackYear?.getDataValue("year") || "2026") as Year;
 };
 
 export async function GET(req: Request) {

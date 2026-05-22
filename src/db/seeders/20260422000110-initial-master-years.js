@@ -72,6 +72,7 @@ module.exports = {
       year,
       label: `Tahun ${year}`,
       is_active: true,
+      is_default: index === 0,
       sort_order: index + 1,
       chart_colors: JSON.stringify(colorsByYear[year]),
       createdAt: now,

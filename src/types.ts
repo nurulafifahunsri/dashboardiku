@@ -31,6 +31,7 @@ export interface MasterYear {
   year: Year;
   label: string;
   isActive: boolean;
+  isDefault: boolean;
   sortOrder: number;
   chartColors?: ChartColorConfig;
 }

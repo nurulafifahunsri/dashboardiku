@@ -58,6 +58,7 @@ export interface MasterYearAttributes {
     year: string;
     label: string;
     is_active: boolean;
+    is_default: boolean;
     sort_order: number;
     chart_colors?: string | null;
     createdAt?: Date;
@@ -171,6 +172,11 @@ export const MasterYear = sequelize.define<Model<MasterYearAttributes>>('MasterY
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
+    },
+    is_default: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
     },
     sort_order: {
         type: DataTypes.INTEGER,

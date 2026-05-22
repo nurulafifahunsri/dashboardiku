@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MasterYear } from '@/lib/db';
+import { MasterYear, sequelize } from '@/lib/db';
 import { verifySession } from '@/lib/auth';
 import { generateChartColors, parseChartColors } from '@/lib/chartColors';
 
@@ -10,6 +10,7 @@ const mapRow = (row: any) => ({
   year: row.year,
   label: row.label,
   isActive: row.is_active,
+  isDefault: row.is_default,
   sortOrder: row.sort_order,
   chartColors: parseChartColors(row.chart_colors, row.year),
 });
@@ -42,16 +43,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const nextYear = body.year ?? row.getDataValue('year');
 
-    await row.update({
-      year: body.year ?? row.getDataValue('year'),
-      label: body.label ?? row.getDataValue('label'),
-      is_active: typeof body.isActive === 'boolean' ? body.isActive : row.getDataValue('is_active'),
-      sort_order: Number.isFinite(body.sortOrder) ? Number(body.sortOrder) : row.getDataValue('sort_order'),
-      chart_colors:
-        body.year && body.year !== row.getDataValue('year')
-          ? JSON.stringify(generateChartColors(body.year))
-          : row.getDataValue('chart_colors') || JSON.stringify(generateChartColors(nextYear)),
-    } as any);
+    await sequelize.transaction(async (transaction) => {
+      if (body.isDefault === true) {
+        await MasterYear.update({ is_default: false } as any, { where: {}, transaction });
+      }
+
+      const nextIsDefault =
+        typeof body.isDefault === 'boolean' ? body.isDefault : row.getDataValue('is_default');
+
+      await row.update({
+        year: body.year ?? row.getDataValue('year'),
+        label: body.label ?? row.getDataValue('label'),
+        is_active:
+          nextIsDefault === true
+            ? true
+            : typeof body.isActive === 'boolean'
+              ? body.isActive
+              : row.getDataValue('is_active'),
+        is_default: nextIsDefault,
+        sort_order: Number.isFinite(body.sortOrder) ? Number(body.sortOrder) : row.getDataValue('sort_order'),
+        chart_colors:
+          body.year && body.year !== row.getDataValue('year')
+            ? JSON.stringify(generateChartColors(body.year))
+            : row.getDataValue('chart_colors') || JSON.stringify(generateChartColors(nextYear)),
+      } as any, { transaction });
+    });
 
     return NextResponse.json(mapRow(row.get({ plain: true })));
   } catch (error) {

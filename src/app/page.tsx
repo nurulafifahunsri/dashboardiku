@@ -135,7 +135,8 @@ function DashboardPage() {
     [masterYears]
   );
 
-  const fallbackYear = activeYears[0]?.year || "2026";
+  const defaultMasterYear = activeYears.find((year) => year.isDefault) || activeYears[0];
+  const fallbackYear = defaultMasterYear?.year || "2026";
   const isYearValid = Boolean(yearParam && activeYears.find((year) => year.year === yearParam));
   const selectedYear = (yearParam && activeYears.find((year) => year.year === yearParam)?.year) || fallbackYear;
   const selectedMasterYear = activeYears.find((item) => item.year === selectedYear);
@@ -145,7 +146,6 @@ function DashboardPage() {
   const pushUrl = (targetMenu: MenuKey, extras?: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("menu", targetMenu);
-    if (selectedYear) params.set("year", selectedYear);
     if (extras) {
       Object.entries(extras).forEach(([key, value]) => {
         if (value === null || value === undefined || value === "") params.delete(key);
@@ -215,7 +215,7 @@ function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!isLoadingYears && fallbackYear && (!yearParam || !isYearValid)) {
+    if (!isLoadingYears && fallbackYear && yearParam && !isYearValid) {
       pushUrl(menu, { year: fallbackYear });
     }
   }, [isLoadingYears, yearParam, isYearValid, fallbackYear, menu]);
@@ -349,7 +349,7 @@ function DashboardPage() {
           </div>
         );
       }
-      return <MasterYearManagementView years={masterYears} onRefresh={refreshMasterYears} />;
+      return <MasterYearManagementView years={masterYears} onRefresh={refreshMasterYears} onDefaultChanged={() => pushUrl(menu, { year: null })} />;
     }
 
     if (menu === "profil") {

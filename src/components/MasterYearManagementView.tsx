@@ -1,12 +1,13 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { MasterYear } from "@/types";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, Pencil, Plus, Trash2, X } from "lucide-react";
 import ModalShell from "./ModalShell";
 
 interface Props {
   years: MasterYear[];
   onRefresh: () => Promise<void>;
+  onDefaultChanged?: (year: MasterYear["year"]) => void;
 }
 
 interface FormState {
@@ -25,7 +26,7 @@ const defaultForm: FormState = {
   sortOrder: new Date().getFullYear(),
 };
 
-const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
+const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh, onDefaultChanged }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"semua" | "aktif" | "nonaktif">("semua");
   const [sortKey, setSortKey] = useState<"year" | "label" | "sortOrder">("year");
@@ -152,6 +153,31 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
       }
       setMessage("Master tahun berhasil dihapus.");
       await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetDefault = async (year: MasterYear) => {
+    if (year.isDefault) return;
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch(`/api/master-years/${year.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDefault: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengubah tahun default");
+      }
+      setMessage(`${year.label} berhasil dijadikan tahun default.`);
+      await onRefresh();
+      onDefaultChanged?.(year.year);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem");
     } finally {
@@ -360,7 +386,7 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left">
+          <table className="w-full min-w-[760px] text-left">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                 <th className="px-3 py-2 text-xs">
@@ -385,11 +411,42 @@ const MasterYearManagementView: React.FC<Props> = ({ years, onRefresh }) => {
             <tbody>
               {pagedRows.map((year) => (
                 <tr key={year.id} className="border-b border-[var(--border)]">
-                  <td className="px-3 py-2 text-sm font-semibold">{year.year}</td>
+                  <td className="px-3 py-2 text-sm font-semibold">
+                    <span className="inline-flex items-center gap-2">
+                      {year.year}
+                      {year.isDefault && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-700">
+                          <CheckCircle2 size={11} />
+                          Default
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-sm">{year.label}</td>
                   <td className="px-3 py-2 text-sm">{year.isActive ? "Aktif" : "Nonaktif"}</td>
                   <td className="px-3 py-2 text-sm">{year.sortOrder}</td>
                   <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleSetDefault(year)}
+                      disabled={loading || year.isDefault}
+                      aria-pressed={year.isDefault}
+                      title={year.isDefault ? "Tahun default saat ini" : "Jadikan tahun default"}
+                      className="mr-2 inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-white px-2 py-1 text-xs font-semibold disabled:cursor-default disabled:opacity-80"
+                    >
+                      <span
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors ${
+                          year.isDefault ? "bg-emerald-600" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                            year.isDefault ? "translate-x-4" : "translate-x-0.5"
+                          }`}
+                        />
+                      </span>
+                      Default
+                    </button>
                     <button
                       type="button"
                       onClick={() => startEdit(year)}
